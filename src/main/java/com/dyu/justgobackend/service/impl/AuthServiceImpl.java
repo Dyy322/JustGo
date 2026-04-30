@@ -15,6 +15,7 @@ import com.dyu.justgobackend.security.LoginUser;
 import com.dyu.justgobackend.security.ParsedAccessToken;
 import com.dyu.justgobackend.security.UserContext;
 import com.dyu.justgobackend.service.AuthService;
+import com.dyu.justgobackend.service.UserService;
 import com.dyu.justgobackend.util.AuthorizationHeaderUtils;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -30,13 +31,15 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtDenylistService jwtDenylistService;
+    private final UserService userService;
 
     public AuthServiceImpl(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider,
-                           JwtDenylistService jwtDenylistService) {
+                           JwtDenylistService jwtDenylistService, UserService userService) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.jwtDenylistService = jwtDenylistService;
+        this.userService = userService;
     }
 
     @Override
@@ -77,11 +80,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public UserProfileResponse currentUserProfile() {
-        LoginUser loginUser = UserContext.get()
-                .orElseThrow(() -> new BusinessException(401, "请先登录"));
-        User user = findById(loginUser.id())
-                .orElseThrow(() -> new BusinessException(401, "用户不存在"));
-        return UserProfileResponse.from(user);
+        return userService.getCurrentUserProfile();
     }
 
     /** 将当前令牌的 jti 写入 Redis 黑名单，TTL 为剩余有效期，使登出立即生效并防止重放。 */
@@ -105,14 +104,6 @@ public class AuthServiceImpl implements AuthService {
     private Optional<User> findByUsername(String username) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, username)
-                .isNull(User::getDeletedAt)
-                .last("limit 1");
-        return Optional.ofNullable(userMapper.selectOne(wrapper));
-    }
-
-    private Optional<User> findById(Long id) {
-        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<User>()
-                .eq(User::getId, id)
                 .isNull(User::getDeletedAt)
                 .last("limit 1");
         return Optional.ofNullable(userMapper.selectOne(wrapper));
