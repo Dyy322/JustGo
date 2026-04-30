@@ -19,13 +19,10 @@ import java.util.Optional;
 public class JwtAuthenticationInterceptor implements HandlerInterceptor {
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtDenylistService jwtDenylistService;
-    private final HttpServletResponseUtils httpServletResponseUtils;
 
-    public JwtAuthenticationInterceptor(JwtTokenProvider jwtTokenProvider, JwtDenylistService jwtDenylistService,
-                                        HttpServletResponseUtils httpServletResponseUtils) {
+    public JwtAuthenticationInterceptor(JwtTokenProvider jwtTokenProvider, JwtDenylistService jwtDenylistService) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.jwtDenylistService = jwtDenylistService;
-        this.httpServletResponseUtils = httpServletResponseUtils;
     }
 
     /**
@@ -45,20 +42,20 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
         Optional<String> bearerToken = AuthorizationHeaderUtils.bearerToken(authorization);
         if (bearerToken.isEmpty()) {
-            httpServletResponseUtils.writeUnauthorized(response, "请先登录");
+            HttpServletResponseUtils.writeUnauthorized(response, "请先登录");
             return false;
         }
 
         try {
             ParsedAccessToken accessToken = jwtTokenProvider.parseAccessToken(bearerToken.get());
             if (jwtDenylistService.isDenied(accessToken.jti())) {
-                httpServletResponseUtils.writeUnauthorized(response, "登录已失效，请重新登录");
+                HttpServletResponseUtils.writeUnauthorized(response, "登录已失效，请重新登录");
                 return false;
             }
             UserContext.set(accessToken.loginUser());
             return true;
         } catch (BusinessException exception) {
-            httpServletResponseUtils.writeUnauthorized(response, exception.getMessage());
+            HttpServletResponseUtils.writeUnauthorized(response, exception.getMessage());
             return false;
         }
     }
