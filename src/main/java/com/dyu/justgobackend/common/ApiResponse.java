@@ -1,16 +1,18 @@
 package com.dyu.justgobackend.common;
 
+import java.time.LocalDateTime;
+
 public record ApiResponse<T>(
         int code,
         String message,
         T data,
-        long timestamp
+        LocalDateTime timestamp
 ) {
     public static <T> ApiResponse<T> success(T data) {
-        return new ApiResponse<>(0, "success", data, System.currentTimeMillis());
+        return new ApiResponse<>(0, "success", data, LocalDateTime.now());
     }
 
     public static <T> ApiResponse<T> fail(int code, String message) {
-        return new ApiResponse<>(code, message, null, System.currentTimeMillis());
+        return new ApiResponse<>(code, message, null, LocalDateTime.now());
     }
 }
