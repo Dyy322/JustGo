@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.dyu.justgobackend.dto.request.LoginRequest;
 import com.dyu.justgobackend.dto.response.LoginResponse;
+import com.dyu.justgobackend.dto.request.RefreshTokenRequest;
 import com.dyu.justgobackend.dto.request.RegisterRequest;
 import com.dyu.justgobackend.dto.response.UserProfileResponse;
 import com.dyu.justgobackend.entity.User;
@@ -12,7 +13,7 @@ import com.dyu.justgobackend.mapper.UserMapper;
 import com.dyu.justgobackend.security.JwtDenylistService;
 import com.dyu.justgobackend.security.JwtTokenProvider;
 import com.dyu.justgobackend.security.LoginUser;
-import com.dyu.justgobackend.security.ParsedAccessToken;
+import com.dyu.justgobackend.security.ParsedToken;
 import com.dyu.justgobackend.security.UserContext;
 import com.dyu.justgobackend.service.AuthService;
 import com.dyu.justgobackend.service.UserService;
@@ -57,8 +58,43 @@ public class AuthServiceImpl implements AuthService {
         }
 
         recordLoginSuccess(user.getId(), clientIp);
-        String token = jwtTokenProvider.createToken(user);
-        return new LoginResponse("Bearer", token, jwtTokenProvider.expiresInSeconds(), UserProfileResponse.from(user));
+        String accessToken = jwtTokenProvider.createAccessToken(user);
+        String refreshToken = jwtTokenProvider.createRefreshToken(user);
+        return new LoginResponse(
+                "Bearer",
+                accessToken,
+                jwtTokenProvider.expiresInSeconds(),
+                refreshToken,
+                jwtTokenProvider.refreshExpiresInSeconds(),
+                UserProfileResponse.from(user));
+    }
+
+    @Override
+    public LoginResponse refresh(RefreshTokenRequest request) {
+        ParsedToken parsed = jwtTokenProvider.parseRefreshToken(request.refreshToken());
+        if (jwtDenylistService.isDenied(parsed.jti())) {
+            throw new BusinessException(401, "刷新令牌已失效，请重新登录");
+        }
+
+        User user = findById(parsed.loginUser().id())
+                .orElseThrow(() -> new BusinessException(401, "用户不存在"));
+        if (!user.isEnabled()) {
+            throw new BusinessException(403, "账号当前不可用");
+        }
+
+        long refreshRemainingSeconds =
+                parsed.expiresAtEpochSecond() - Instant.now().getEpochSecond();
+        jwtDenylistService.denyUntilExpiry(parsed.jti(), Duration.ofSeconds(Math.max(0, refreshRemainingSeconds)));
+
+        String accessToken = jwtTokenProvider.createAccessToken(user);
+        String refreshToken = jwtTokenProvider.createRefreshToken(user);
+        return new LoginResponse(
+                "Bearer",
+                accessToken,
+                jwtTokenProvider.expiresInSeconds(),
+                refreshToken,
+                jwtTokenProvider.refreshExpiresInSeconds(),
+                UserProfileResponse.from(user));
     }
 
     @Override
@@ -88,7 +124,7 @@ public class AuthServiceImpl implements AuthService {
     public void logout(String authorizationHeader) {
         String rawToken = AuthorizationHeaderUtils.bearerToken(authorizationHeader)
                 .orElseThrow(() -> new BusinessException(401, "请先登录"));
-        ParsedAccessToken parsed = jwtTokenProvider.parseAccessToken(rawToken);
+        ParsedToken parsed = jwtTokenProvider.parseAccessToken(rawToken);
 
         LoginUser loginUser =
                 UserContext.get().orElseThrow(() -> new BusinessException(401, "请先登录"));
@@ -104,6 +140,14 @@ public class AuthServiceImpl implements AuthService {
     private Optional<User> findByUsername(String username) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, username)
+                .isNull(User::getDeletedAt)
+                .last("limit 1");
+        return Optional.ofNullable(userMapper.selectOne(wrapper));
+    }
+
+    private Optional<User> findById(Long id) {
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<User>()
+                .eq(User::getId, id)
                 .isNull(User::getDeletedAt)
                 .last("limit 1");
         return Optional.ofNullable(userMapper.selectOne(wrapper));

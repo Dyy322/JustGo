@@ -47,7 +47,7 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
         }
 
         try {
-            ParsedAccessToken accessToken = jwtTokenProvider.parseAccessToken(bearerToken.get());
+            ParsedToken accessToken = jwtTokenProvider.parseAccessToken(bearerToken.get());
             if (jwtDenylistService.isDenied(accessToken.jti())) {
                 HttpServletResponseUtils.writeUnauthorized(response, "登录已失效，请重新登录");
                 return false;

@@ -1,6 +1,7 @@
 package com.dyu.justgobackend.security;
 
 import com.dyu.justgobackend.entity.User;
+import com.dyu.justgobackend.enums.TokenKind;
 import com.dyu.justgobackend.exception.BusinessException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +11,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -33,9 +35,17 @@ public class JwtTokenProvider {
         this.objectMapper = objectMapper;
     }
 
-    public String createToken(User user) {
+    public String createAccessToken(User user) {
+        return createSignedToken(user, TokenKind.ACCESS, properties.expiration());
+    }
+
+    public String createRefreshToken(User user) {
+        return createSignedToken(user, TokenKind.REFRESH, properties.refreshExpiration());
+    }
+
+    private String createSignedToken(User user, TokenKind kind, Duration ttl) {
         Instant now = Instant.now();
-        Instant expiresAt = now.plus(properties.expiration());
+        Instant expiresAt = now.plus(ttl);
 
         Map<String, Object> header = new LinkedHashMap<>();
         header.put("alg", "HS256");
@@ -52,12 +62,44 @@ public class JwtTokenProvider {
         payload.put("iat", now.getEpochSecond());
         // Expiration Time 过期时间
         payload.put("exp", expiresAt.getEpochSecond());
+        payload.put("token_use", kind.claimValue());
 
         String unsignedToken = base64Json(header) + "." + base64Json(payload);
         return unsignedToken + "." + sign(unsignedToken);
     }
 
-    public ParsedAccessToken parseAccessToken(String token) {
+    public ParsedToken parseAccessToken(String token) {
+        return parseToken(token, TokenKind.ACCESS);
+    }
+
+    /** 校验 refresh token；不检查黑名单（由业务在轮换前调用 {@link JwtDenylistService#isDenied}）。 */
+    public ParsedToken parseRefreshToken(String token) {
+        return parseToken(token, TokenKind.REFRESH);
+    }
+
+    private ParsedToken parseToken(String token, TokenKind expectedKind) {
+        Map<String, Object> payload = parseAndVerifyPayload(token);
+        assertTokenUse(payload, expectedKind);
+
+        long expiresAtEpoch = numberValue(payload.get("exp"), "exp").longValue();
+        if (Instant.now().getEpochSecond() >= expiresAtEpoch) {
+            throw new BusinessException(401, expectedKind.expiredMessage());
+        }
+
+        String jti = requireJti(payload);
+        LoginUser loginUser = readLoginUser(payload);
+        return new ParsedToken(loginUser, jti, expiresAtEpoch);
+    }
+
+    public long expiresInSeconds() {
+        return properties.expiration().toSeconds();
+    }
+
+    public long refreshExpiresInSeconds() {
+        return properties.refreshExpiration().toSeconds();
+    }
+
+    private Map<String, Object> parseAndVerifyPayload(String token) {
         String[] parts = token.split("\\.");
         if (parts.length != 3) {
             throw new BusinessException(401, "无效的登录凭证，令牌格式错误");
@@ -73,28 +115,38 @@ public class JwtTokenProvider {
         if (!properties.issuer().equals(payload.get("iss"))) {
             throw new BusinessException(401, "无效的登录凭证，发者验证失败");
         }
+        return payload;
+    }
 
-        long expiresAt = numberValue(payload.get("exp"), "exp").longValue();
-        if (Instant.now().getEpochSecond() >= expiresAt) {
-            throw new BusinessException(401, "登录凭证已过期");
+    private static void assertTokenUse(Map<String, Object> payload, TokenKind expected) {
+        Object use = payload.get("token_use");
+        String actual = use == null ? "" : String.valueOf(use);
+        if (expected == TokenKind.ACCESS) {
+            if (TokenKind.REFRESH.claimValue().equals(actual)) {
+                throw new BusinessException(401, "请使用访问令牌调用该接口");
+            }
+            return;
         }
+        if (!expected.claimValue().equals(actual)) {
+            throw new BusinessException(401, "无效的刷新令牌");
+        }
+    }
 
+    private String requireJti(Map<String, Object> payload) {
         Object jtiObj = payload.get("jti");
         if (jtiObj == null) {
             throw new BusinessException(401, "令牌缺少 jti，请重新登录");
         }
         String jti = String.valueOf(jtiObj).trim();
         validateJti(jti);
+        return jti;
+    }
 
+    private LoginUser readLoginUser(Map<String, Object> payload) {
         Long userId = Long.valueOf(String.valueOf(payload.get("sub")));
         String username = String.valueOf(payload.get("username"));
         Integer accountType = numberValue(payload.get("accountType"), "accountType").intValue();
-        LoginUser loginUser = new LoginUser(userId, username, accountType);
-        return new ParsedAccessToken(loginUser, jti, expiresAt);
-    }
-
-    public long expiresInSeconds() {
-        return properties.expiration().toSeconds();
+        return new LoginUser(userId, username, accountType);
     }
 
     private String base64Json(Map<String, Object> value) {

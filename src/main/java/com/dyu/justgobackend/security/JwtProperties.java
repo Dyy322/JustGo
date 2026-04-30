@@ -9,6 +9,8 @@ public record JwtProperties(
         String secret,
         String issuer,
         Duration expiration,
+        /** Refresh Token 有效期，应明显长于 access token。 */
+        Duration refreshExpiration,
         /* Redis 中 jti 黑名单键前缀，须与运维侧隔离命名空间。 */
         String denylistKeyPrefix
 ) {

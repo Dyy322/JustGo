@@ -74,6 +74,8 @@ app:
     issuer: JustGo-backend
     # Token 有效期，2h 表示 2 小时后过期
     expiration: 2h
+    # Refresh Token 有效期（轮换后旧 refresh 的 jti 会进黑名单至其自然过期）
+    refresh-expiration: 7d
     # Redis 中 jti 吊销集合键前缀（与业务 Redis key 命名空间区分）
     denylist-key-prefix: ${JWT_DENYLIST_PREFIX:jwt:denylist:}
 

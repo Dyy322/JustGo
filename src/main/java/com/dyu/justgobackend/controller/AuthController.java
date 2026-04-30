@@ -3,6 +3,7 @@ package com.dyu.justgobackend.controller;
 import com.dyu.justgobackend.common.ApiResponse;
 import com.dyu.justgobackend.dto.request.LoginRequest;
 import com.dyu.justgobackend.dto.response.LoginResponse;
+import com.dyu.justgobackend.dto.request.RefreshTokenRequest;
 import com.dyu.justgobackend.dto.request.RegisterRequest;
 import com.dyu.justgobackend.dto.response.UserProfileResponse;
 import com.dyu.justgobackend.service.AuthService;
@@ -28,6 +29,11 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
         return ApiResponse.success(authService.login(request, HttpServletRequestUtils.clientIp(servletRequest)));
+    }
+
+    @PostMapping("/refresh")
+    public ApiResponse<LoginResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return ApiResponse.success(authService.refresh(request));
     }
 
     @PostMapping("/register")
