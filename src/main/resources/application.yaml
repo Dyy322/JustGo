@@ -76,3 +76,16 @@ app:
     expiration: 2h
     # Redis 中 jti 吊销集合键前缀（与业务 Redis key 命名空间区分）
     denylist-key-prefix: ${JWT_DENYLIST_PREFIX:jwt:denylist:}
+
+  observability:
+    web-log:
+      enabled: true
+      slow-threshold-ms: 1000
+      exclude-path-patterns:
+        - /api/health
+      include-client-ip: true
+      mask-placeholder: "***"
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%15.15t] %-40.40logger{39} - %m%n%wEx"
