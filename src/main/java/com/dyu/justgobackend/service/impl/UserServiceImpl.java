@@ -2,30 +2,57 @@ package com.dyu.justgobackend.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.dyu.justgobackend.dto.internal.FollowListRow;
 import com.dyu.justgobackend.dto.request.ChangePasswordRequest;
 import com.dyu.justgobackend.dto.request.UpdateProfileRequest;
+import com.dyu.justgobackend.dto.response.FollowCursorPageResponse;
+import com.dyu.justgobackend.dto.response.FollowUserItemResponse;
+import com.dyu.justgobackend.dto.response.UserFollowRelationResponse;
+import com.dyu.justgobackend.dto.response.UserFollowStatsResponse;
 import com.dyu.justgobackend.dto.response.UserProfileResponse;
 import com.dyu.justgobackend.dto.response.UserPublicProfileResponse;
 import com.dyu.justgobackend.entity.User;
+import com.dyu.justgobackend.entity.UserFollowStats;
 import com.dyu.justgobackend.exception.BusinessException;
+import com.dyu.justgobackend.mapper.UserFollowMapper;
+import com.dyu.justgobackend.mapper.UserFollowStatsMapper;
 import com.dyu.justgobackend.mapper.UserMapper;
 import com.dyu.justgobackend.security.LoginUser;
 import com.dyu.justgobackend.security.UserContext;
 import com.dyu.justgobackend.service.UserService;
+import com.dyu.justgobackend.service.social.FollowCursorCodec;
+import com.dyu.justgobackend.service.social.FollowStatsRedisCache;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 @Service
 public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
+    private final UserFollowMapper userFollowMapper;
+    private final UserFollowStatsMapper userFollowStatsMapper;
+    private final FollowCursorCodec followCursorCodec;
+    private final FollowStatsRedisCache followStatsRedisCache;
     private final PasswordEncoder passwordEncoder;
 
-    public UserServiceImpl(UserMapper userMapper, PasswordEncoder passwordEncoder) {
+    public UserServiceImpl(
+            UserMapper userMapper,
+            UserFollowMapper userFollowMapper,
+            UserFollowStatsMapper userFollowStatsMapper,
+            FollowCursorCodec followCursorCodec,
+            FollowStatsRedisCache followStatsRedisCache,
+            PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
+        this.userFollowMapper = userFollowMapper;
+        this.userFollowStatsMapper = userFollowStatsMapper;
+        this.followCursorCodec = followCursorCodec;
+        this.followStatsRedisCache = followStatsRedisCache;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -107,6 +134,115 @@ public class UserServiceImpl implements UserService {
         return UserPublicProfileResponse.from(user);
     }
 
+    @Override
+    @Transactional
+    public void follow(Long targetUserId) {
+        Long followerId = currentUserId();
+        if (Objects.equals(followerId, targetUserId)) {
+            throw new BusinessException(400, "不能关注自己");
+        }
+        requireFollowableUser(targetUserId);
+
+        int inserted = userFollowMapper.insertIgnore(followerId, targetUserId);
+        if (inserted == 0) {
+            return;
+        }
+        userFollowStatsMapper.incrementFollowing(followerId);
+        userFollowStatsMapper.incrementFollowers(targetUserId);
+        followStatsRedisCache.evictPair(followerId, targetUserId);
+    }
+
+    @Override
+    @Transactional
+    public void unfollow(Long targetUserId) {
+        Long followerId = currentUserId();
+        if (Objects.equals(followerId, targetUserId)) {
+            return;
+        }
+
+        int deleted = userFollowMapper.deleteEdge(followerId, targetUserId);
+        if (deleted == 0) {
+            return;
+        }
+        userFollowStatsMapper.decrementFollowing(followerId);
+        userFollowStatsMapper.decrementFollowers(targetUserId);
+        followStatsRedisCache.evictPair(followerId, targetUserId);
+    }
+
+    @Override
+    public UserFollowStatsResponse getFollowStats(Long userId) {
+        requireUserById(userId);
+        Optional<UserFollowStatsResponse> cached = followStatsRedisCache.get(userId);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+        userFollowStatsMapper.ensureRow(userId);
+        UserFollowStats row = userFollowStatsMapper.selectByUserId(userId);
+        long following = row != null && row.getFollowingCount() != null ? row.getFollowingCount() : 0L;
+        long followers = row != null && row.getFollowerCount() != null ? row.getFollowerCount() : 0L;
+        UserFollowStatsResponse stats = new UserFollowStatsResponse(following, followers);
+        followStatsRedisCache.put(userId, stats);
+        return stats;
+    }
+
+    @Override
+    public UserFollowRelationResponse getFollowRelation(Long targetUserId) {
+        Long viewerId = currentUserId();
+        if (Objects.equals(viewerId, targetUserId)) {
+            return new UserFollowRelationResponse(false, false);
+        }
+        requireUserById(targetUserId);
+        boolean following = userFollowMapper.existsEdge(viewerId, targetUserId);
+        boolean followsYou = userFollowMapper.existsEdge(targetUserId, viewerId);
+        return new UserFollowRelationResponse(following, followsYou);
+    }
+
+    @Override
+    public FollowCursorPageResponse<FollowUserItemResponse> listFollowers(Long userId, String cursor, int limit) {
+        requireUserById(userId);
+        CursorParams p = cursorParams(cursor);
+        List<FollowListRow> rows = userFollowMapper.selectFollowersPage(
+                userId, p.createdAt(), p.tieBreakerUserId(), limit + 1);
+        return buildFollowPage(rows, limit);
+    }
+
+    @Override
+    public FollowCursorPageResponse<FollowUserItemResponse> listFollowing(Long userId, String cursor, int limit) {
+        requireUserById(userId);
+        CursorParams p = cursorParams(cursor);
+        List<FollowListRow> rows = userFollowMapper.selectFollowingPage(
+                userId, p.createdAt(), p.tieBreakerUserId(), limit + 1);
+        return buildFollowPage(rows, limit);
+    }
+
+    private CursorParams cursorParams(String cursor) {
+        Optional<FollowCursorCodec.DecodedFollowCursor> decoded = followCursorCodec.decode(cursor);
+        if (decoded.isEmpty()) {
+            return new CursorParams(null, null);
+        }
+        FollowCursorCodec.DecodedFollowCursor d = decoded.get();
+        return new CursorParams(d.createdAt(), d.tieBreakerUserId());
+    }
+
+    private FollowCursorPageResponse<FollowUserItemResponse> buildFollowPage(List<FollowListRow> rows, int limit) {
+        boolean hasMore = rows.size() > limit;
+        List<FollowListRow> window = hasMore ? rows.subList(0, limit) : rows;
+        String nextCursor = null;
+        if (hasMore && !window.isEmpty()) {
+            FollowListRow last = window.get(window.size() - 1);
+            nextCursor = followCursorCodec.encode(last.getFollowedAt(), last.getUserId());
+        }
+        List<FollowUserItemResponse> items = window.stream().map(FollowUserItemResponse::from).toList();
+        return new FollowCursorPageResponse<>(items, nextCursor, hasMore);
+    }
+
+    private void requireFollowableUser(Long userId) {
+        User user = requireUserById(userId);
+        if (!user.isEnabled()) {
+            throw new BusinessException(404, "用户不存在");
+        }
+    }
+
     private static boolean hasAnyProfileField(UpdateProfileRequest request) {
         return StringUtils.hasText(request.nickname())
                 || request.avatar() != null
@@ -133,5 +269,8 @@ public class UserServiceImpl implements UserService {
                 .last("LIMIT 1");
         return Optional.ofNullable(userMapper.selectOne(wrapper))
                 .orElseThrow(() -> new BusinessException(404, "用户不存在"));
+    }
+
+    private record CursorParams(LocalDateTime createdAt, Long tieBreakerUserId) {
     }
 }
