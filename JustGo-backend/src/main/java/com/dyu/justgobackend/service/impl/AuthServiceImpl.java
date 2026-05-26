@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.dyu.justgobackend.dto.request.LoginRequest;
 import com.dyu.justgobackend.dto.response.LoginResponse;
-import com.dyu.justgobackend.dto.request.RefreshTokenRequest;
 import com.dyu.justgobackend.dto.request.RegisterRequest;
 import com.dyu.justgobackend.dto.response.UserProfileResponse;
 import com.dyu.justgobackend.entity.User;
@@ -17,7 +16,6 @@ import com.dyu.justgobackend.security.ParsedToken;
 import com.dyu.justgobackend.security.UserContext;
 import com.dyu.justgobackend.service.AuthService;
 import com.dyu.justgobackend.service.UserService;
-import com.dyu.justgobackend.util.AuthorizationHeaderUtils;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -70,8 +68,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public LoginResponse refresh(RefreshTokenRequest request) {
-        ParsedToken parsed = jwtTokenProvider.parseRefreshToken(request.refreshToken());
+    public LoginResponse refresh(String refreshToken) {
+        ParsedToken parsed = jwtTokenProvider.parseRefreshToken(refreshToken);
         if (jwtDenylistService.isDenied(parsed.jti())) {
             throw new BusinessException(401, "刷新令牌已失效，请重新登录");
         }
@@ -87,12 +85,12 @@ public class AuthServiceImpl implements AuthService {
         jwtDenylistService.denyUntilExpiry(parsed.jti(), Duration.ofSeconds(Math.max(0, refreshRemainingSeconds)));
 
         String accessToken = jwtTokenProvider.createAccessToken(user);
-        String refreshToken = jwtTokenProvider.createRefreshToken(user);
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(user);
         return new LoginResponse(
                 "Bearer",
                 accessToken,
                 jwtTokenProvider.expiresInSeconds(),
-                refreshToken,
+                newRefreshToken,
                 jwtTokenProvider.refreshExpiresInSeconds(),
                 UserProfileResponse.from(user));
     }
@@ -119,12 +117,9 @@ public class AuthServiceImpl implements AuthService {
         return userService.getCurrentUserProfile();
     }
 
-    /** 将当前令牌的 jti 写入 Redis 黑名单，TTL 为剩余有效期，使登出立即生效并防止重放。 */
     @Override
-    public void logout(String authorizationHeader) {
-        String rawToken = AuthorizationHeaderUtils.bearerToken(authorizationHeader)
-                .orElseThrow(() -> new BusinessException(401, "请先登录"));
-        ParsedToken parsed = jwtTokenProvider.parseAccessToken(rawToken);
+    public void logout(String accessToken) {
+        ParsedToken parsed = jwtTokenProvider.parseAccessToken(accessToken);
 
         LoginUser loginUser =
                 UserContext.get().orElseThrow(() -> new BusinessException(401, "请先登录"));

@@ -6,8 +6,11 @@ import com.baomidou.mybatisplus.core.incrementer.IdentifierGenerator;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import javax.sql.DataSource;
 import java.util.UUID;
@@ -24,6 +27,9 @@ public class MyBatisPlusConfig {
      */
     private static final AtomicLong ID_SEQUENCE = new AtomicLong();
 
+    @Value("${mybatis-plus.mapper-locations}")
+    private String mapperLocations;
+
     /**
      * 创建并配置 MyBatis-Plus 的 SqlSessionFactory
      * 开启下划线转驼峰映射，并注入全局配置
@@ -36,6 +42,9 @@ public class MyBatisPlusConfig {
     public SqlSessionFactory sqlSessionFactory(DataSource dataSource) throws Exception {
         MybatisSqlSessionFactoryBean factoryBean = new MybatisSqlSessionFactoryBean();
         factoryBean.setDataSource(dataSource);
+
+        Resource[] mapperResources = new PathMatchingResourcePatternResolver().getResources(mapperLocations);
+        factoryBean.setMapperLocations(mapperResources);
 
         MybatisConfiguration configuration = new MybatisConfiguration();
         configuration.setMapUnderscoreToCamelCase(true);

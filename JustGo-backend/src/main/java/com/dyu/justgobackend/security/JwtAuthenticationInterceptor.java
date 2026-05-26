@@ -2,6 +2,7 @@ package com.dyu.justgobackend.security;
 
 import com.dyu.justgobackend.exception.BusinessException;
 import com.dyu.justgobackend.util.AuthorizationHeaderUtils;
+import com.dyu.justgobackend.util.CookieUtils;
 import com.dyu.justgobackend.util.HttpServletResponseUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -13,7 +14,7 @@ import java.util.Optional;
 
 /**
  * JWT 认证拦截器
- * 负责在请求到达 Controller 之前校验 Token 有效性，并维护用户上下文
+ * 优先从 httpOnly Cookie 读取令牌，兜底从 Authorization 头读取（兼容移动端）。
  */
 @Component
 public class JwtAuthenticationInterceptor implements HandlerInterceptor {
@@ -25,22 +26,13 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
         this.jwtDenylistService = jwtDenylistService;
     }
 
-    /**
-     * 预处理请求：校验 JWT Token 并将登录用户存入 ThreadLocal
-     *
-     * @param request 当前 HTTP 请求
-     * @param response 当前 HTTP 响应
-     * @param handler 目标处理器
-     * @return true 表示放行，false 表示中断请求
-     */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
 
-        String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
-        Optional<String> bearerToken = AuthorizationHeaderUtils.bearerToken(authorization);
+        Optional<String> bearerToken = extractToken(request);
         if (bearerToken.isEmpty()) {
             HttpServletResponseUtils.writeUnauthorized(response, "请先登录");
             return false;
@@ -58,6 +50,15 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
             HttpServletResponseUtils.writeUnauthorized(response, exception.getMessage());
             return false;
         }
+    }
+
+    /** 优先从 httpOnly Cookie 读取，兜底从 Authorization 头读取（兼容移动端）。 */
+    private Optional<String> extractToken(HttpServletRequest request) {
+        Optional<String> cookieToken = CookieUtils.extractAccessToken(request);
+        if (cookieToken.isPresent()) {
+            return cookieToken;
+        }
+        return AuthorizationHeaderUtils.bearerToken(request.getHeader(HttpHeaders.AUTHORIZATION));
     }
 
     /**

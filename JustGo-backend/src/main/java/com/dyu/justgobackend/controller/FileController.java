@@ -1,7 +1,9 @@
 package com.dyu.justgobackend.controller;
 
 import com.dyu.justgobackend.common.ApiResponse;
+import com.dyu.justgobackend.dto.request.AccessUrlRequest;
 import com.dyu.justgobackend.dto.request.UploadTokenRequest;
+import com.dyu.justgobackend.dto.response.AccessUrlResponse;
 import com.dyu.justgobackend.dto.response.UploadTokenResponse;
 import com.dyu.justgobackend.oss.OssService;
 import jakarta.validation.Valid;
@@ -23,5 +25,11 @@ public class FileController {
     @PostMapping("/upload-token")
     public ApiResponse<UploadTokenResponse> uploadToken(@Valid @RequestBody UploadTokenRequest request) {
         return ApiResponse.success(ossService.generateUploadToken(request.prefix(), request.ext()));
+    }
+
+    @PostMapping("/access-url")
+    public ApiResponse<AccessUrlResponse> accessUrl(@Valid @RequestBody AccessUrlRequest request) {
+        String presignedUrl = ossService.generatePresignedGetUrl(request.objectKey());
+        return ApiResponse.success(new AccessUrlResponse(presignedUrl));
     }
 }
