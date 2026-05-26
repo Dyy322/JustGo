@@ -79,6 +79,11 @@ app:
     # Redis 中 jti 吊销集合键前缀（与业务 Redis key 命名空间区分）
     denylist-key-prefix: ${JWT_DENYLIST_PREFIX:jwt:denylist:}
 
+  # Cookie 安全配置
+  cookie:
+    # 是否启用 Secure 标志（生产环境应设为 true，HTTPS 下开启）
+    secure: ${COOKIE_SECURE:false}
+
   # 阿里云 OSS 对象存储配置
   oss:
     # OSS Endpoint（地域节点），如 oss-cn-shanghai.aliyuncs.com
