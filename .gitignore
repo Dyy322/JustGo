@@ -1,0 +1,13 @@
+# IDE / AI tools
+.claude/
+.superpowers/
+docs/
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# Maven
+target/
