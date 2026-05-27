@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.dyu.justgobackend.mapper.UserMapper">
+<mapper namespace="com.dyu.justgobackend.mapper.user.UserMapper">
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
@@ -10,7 +10,7 @@
     </sql>
 
     <!-- 根据用户名查询用户（用于登录） -->
-    <select id="selectByUsername" resultType="com.dyu.justgobackend.entity.User">
+    <select id="selectByUsername" resultType="com.dyu.justgobackend.entity.user.User">
         SELECT
         <include refid="Base_Column_List"/>
         FROM user
@@ -19,7 +19,7 @@
     </select>
 
     <!-- 根据邮箱查询用户 -->
-    <select id="selectByEmail" resultType="com.dyu.justgobackend.entity.User">
+    <select id="selectByEmail" resultType="com.dyu.justgobackend.entity.user.User">
         SELECT
         <include refid="Base_Column_List"/>
         FROM user
@@ -28,7 +28,7 @@
     </select>
 
     <!-- 根据手机号查询用户 -->
-    <select id="selectByPhone" resultType="com.dyu.justgobackend.entity.User">
+    <select id="selectByPhone" resultType="com.dyu.justgobackend.entity.user.User">
         SELECT
         <include refid="Base_Column_List"/>
         FROM user
@@ -74,7 +74,7 @@
     </update>
 
     <!-- 查询活跃用户列表 -->
-    <select id="selectActiveUsers" resultType="com.dyu.justgobackend.entity.User">
+    <select id="selectActiveUsers" resultType="com.dyu.justgobackend.entity.user.User">
         SELECT
         <include refid="Base_Column_List"/>
         FROM user
@@ -85,7 +85,7 @@
     </select>
 
     <!-- 根据状态查询用户列表 -->
-    <select id="selectByStatus" resultType="com.dyu.justgobackend.entity.User">
+    <select id="selectByStatus" resultType="com.dyu.justgobackend.entity.user.User">
         SELECT
         <include refid="Base_Column_List"/>
         FROM user
@@ -148,7 +148,7 @@
     </select>
 
     <!-- 查询最近注册用户 -->
-    <select id="selectRecentUsers" resultType="com.dyu.justgobackend.entity.User">
+    <select id="selectRecentUsers" resultType="com.dyu.justgobackend.entity.user.User">
         SELECT
         <include refid="Base_Column_List"/>
         FROM user

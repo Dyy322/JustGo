@@ -1,6 +1,6 @@
 package com.dyu.justgobackend.service.social;
 
-import com.dyu.justgobackend.dto.response.UserFollowStatsResponse;
+import com.dyu.justgobackend.dto.response.user.UserFollowStatsResponse;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 

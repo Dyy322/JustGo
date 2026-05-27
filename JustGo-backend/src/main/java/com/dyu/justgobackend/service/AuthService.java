@@ -1,9 +1,9 @@
 package com.dyu.justgobackend.service;
 
-import com.dyu.justgobackend.dto.request.LoginRequest;
-import com.dyu.justgobackend.dto.request.RegisterRequest;
-import com.dyu.justgobackend.dto.response.LoginResponse;
-import com.dyu.justgobackend.dto.response.UserProfileResponse;
+import com.dyu.justgobackend.dto.request.auth.LoginRequest;
+import com.dyu.justgobackend.dto.request.auth.RegisterRequest;
+import com.dyu.justgobackend.dto.response.auth.LoginResponse;
+import com.dyu.justgobackend.dto.response.user.UserProfileResponse;
 
 public interface AuthService {
 

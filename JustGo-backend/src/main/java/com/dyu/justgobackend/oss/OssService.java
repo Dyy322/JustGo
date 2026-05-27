@@ -3,7 +3,7 @@ package com.dyu.justgobackend.oss;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.model.GeneratePresignedUrlRequest;
-import com.dyu.justgobackend.dto.response.UploadTokenResponse;
+import com.dyu.justgobackend.dto.response.oss.UploadTokenResponse;
 import com.dyu.justgobackend.exception.BusinessException;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;

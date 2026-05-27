@@ -2,11 +2,11 @@ package com.dyu.justgobackend.controller;
 
 import com.dyu.justgobackend.common.ApiResponse;
 import com.dyu.justgobackend.config.CookieProperties;
-import com.dyu.justgobackend.dto.request.LoginRequest;
-import com.dyu.justgobackend.dto.response.LoginResponse;
-import com.dyu.justgobackend.dto.request.RefreshTokenRequest;
-import com.dyu.justgobackend.dto.request.RegisterRequest;
-import com.dyu.justgobackend.dto.response.UserProfileResponse;
+import com.dyu.justgobackend.dto.request.auth.LoginRequest;
+import com.dyu.justgobackend.dto.response.auth.LoginResponse;
+import com.dyu.justgobackend.dto.request.auth.RefreshTokenRequest;
+import com.dyu.justgobackend.dto.request.auth.RegisterRequest;
+import com.dyu.justgobackend.dto.response.user.UserProfileResponse;
 import com.dyu.justgobackend.exception.BusinessException;
 import com.dyu.justgobackend.service.AuthService;
 import com.dyu.justgobackend.util.AuthorizationHeaderUtils;

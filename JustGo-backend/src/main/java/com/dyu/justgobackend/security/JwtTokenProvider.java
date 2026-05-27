@@ -1,6 +1,6 @@
 package com.dyu.justgobackend.security;
 
-import com.dyu.justgobackend.entity.User;
+import com.dyu.justgobackend.entity.user.User;
 import com.dyu.justgobackend.enums.TokenKind;
 import com.dyu.justgobackend.exception.BusinessException;
 import com.fasterxml.jackson.core.type.TypeReference;

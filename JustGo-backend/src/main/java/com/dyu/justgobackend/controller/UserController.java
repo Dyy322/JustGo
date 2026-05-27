@@ -1,14 +1,14 @@
 package com.dyu.justgobackend.controller;
 
 import com.dyu.justgobackend.common.ApiResponse;
-import com.dyu.justgobackend.dto.request.ChangePasswordRequest;
-import com.dyu.justgobackend.dto.request.UpdateProfileRequest;
-import com.dyu.justgobackend.dto.response.FollowCursorPageResponse;
-import com.dyu.justgobackend.dto.response.FollowUserItemResponse;
-import com.dyu.justgobackend.dto.response.UserFollowRelationResponse;
-import com.dyu.justgobackend.dto.response.UserFollowStatsResponse;
-import com.dyu.justgobackend.dto.response.UserProfileResponse;
-import com.dyu.justgobackend.dto.response.UserPublicProfileResponse;
+import com.dyu.justgobackend.dto.request.user.ChangePasswordRequest;
+import com.dyu.justgobackend.dto.request.user.UpdateProfileRequest;
+import com.dyu.justgobackend.dto.response.user.FollowCursorPageResponse;
+import com.dyu.justgobackend.dto.response.user.FollowUserItemResponse;
+import com.dyu.justgobackend.dto.response.user.UserFollowRelationResponse;
+import com.dyu.justgobackend.dto.response.user.UserFollowStatsResponse;
+import com.dyu.justgobackend.dto.response.user.UserProfileResponse;
+import com.dyu.justgobackend.dto.response.user.UserPublicProfileResponse;
 import com.dyu.justgobackend.service.UserService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;

@@ -1,10 +1,10 @@
 package com.dyu.justgobackend.controller;
 
 import com.dyu.justgobackend.common.ApiResponse;
-import com.dyu.justgobackend.dto.request.AccessUrlRequest;
-import com.dyu.justgobackend.dto.request.UploadTokenRequest;
-import com.dyu.justgobackend.dto.response.AccessUrlResponse;
-import com.dyu.justgobackend.dto.response.UploadTokenResponse;
+import com.dyu.justgobackend.dto.request.oss.AccessUrlRequest;
+import com.dyu.justgobackend.dto.request.user.UploadTokenRequest;
+import com.dyu.justgobackend.dto.response.oss.AccessUrlResponse;
+import com.dyu.justgobackend.dto.response.oss.UploadTokenResponse;
 import com.dyu.justgobackend.oss.OssService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
