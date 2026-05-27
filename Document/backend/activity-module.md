@@ -189,20 +189,19 @@ CREATE TABLE activity_tag_rel (
 
 ## 活动状态流转
 
-```
-                  ┌──────────┐
-                  │ 5.已取消  │ ← 创建者手动取消
-                  └──────────┘
-                       ↑ cancel
-  ┌──────────┐  join满员  ┌──────────┐  start_time到  ┌──────────┐  end_time到  ┌──────────┐
-  │1.招募中   │ ────────→ │2.已满员   │ ────────────→ │3.进行中   │ ───────────→ │4.已结束   │
-  └──────────┘            └──────────┘                └──────────┘               └──────────┘
-       ↑                       │                           │
-       └─── 有人取消报名 ───────┘                           │
-           (max未满时恢复)                                  │
-                                                           │
-       ┌───────────────────────────────────────────────────┘
-       │ cancel (进行中也可取消，标记为已取消)
+```mermaid
+stateDiagram-v2
+    [*] --> 招募中: 创建活动
+    招募中 --> 已满员: 报名满员
+    招募中 --> 进行中: 活动开始
+    已满员 --> 进行中: 活动开始
+    进行中 --> 已结束: 活动结束
+
+    招募中 --> 已取消: 创建者取消
+    已满员 --> 已取消: 创建者取消
+    进行中 --> 已取消: 创建者取消
+
+    已满员 --> 招募中: 有人取消报名(max未满)
 ```
 
 **状态变更触发点**：
@@ -381,12 +380,14 @@ public record TagResponse(Long id, String name) {}
 
 **编辑器选型**：Tiptap（基于 ProseMirror），Vue 3 原生支持，TypeScript 友好，轻量可扩展。
 
-```
-用户输入 → Tiptap 编辑器 → HTML 字符串
-    → 前端 DOMPurify 消毒（去除 script/onclick 等）
-    → POST /api/activities（body 含 description HTML）
-    → 后端 OWASP HtmlSanitizer 二次消毒
-    → 存入 MySQL TEXT 字段
+```mermaid
+flowchart LR
+    A[用户输入] --> B[Tiptap 编辑器]
+    B --> C[HTML 字符串]
+    C --> D[前端 DOMPurify 消毒]
+    D --> E[POST /api/activities]
+    E --> F[后端 OWASP HtmlSanitizer 二次消毒]
+    F --> G[存入 MySQL TEXT]
 ```
 
 **安全措施**：
@@ -398,16 +399,22 @@ public record TagResponse(Long id, String name) {}
 
 ### 2. 活动创建流程
 
-```
-POST /api/activities
-  → 校验 title 非空、startTime > now、categoryId 存在
-  → 如有 tagIds，校验所有 tagId 存在
-  → 如有 coverImage，校验 objectKey 格式合法（前缀+UUID+.ext）
-  → HTML 消毒 description（如有）
-  → INSERT activity（status=1, current_participants=0）
-  → 如有 tagIds，BATCH INSERT activity_tag_rel
-  → 如有 coverImage 或后续添加图片，OSS 预签名 URL 生成由 /api/files/upload-token 独立处理
-  → 返回 ActivityDetailResponse
+```mermaid
+flowchart TD
+    A[校验 title 非空、startTime &gt; now、categoryId 存在] --> B{有 tagIds?}
+    B -->|是| C[校验所有 tagId 存在]
+    C --> D{有 coverImage?}
+    B -->|否| D
+    D -->|是| E[校验 objectKey 格式合法]
+    E --> F{有 description?}
+    D -->|否| F
+    F -->|是| G[OWASP HtmlSanitizer 消毒]
+    G --> H[INSERT activity status=1]
+    F -->|否| H
+    H --> I{有 tagIds?}
+    I -->|是| J[BATCH INSERT activity_tag_rel]
+    J --> K[返回 ActivityDetailResponse]
+    I -->|否| K
 ```
 
 ### 3. 活动列表查询
@@ -436,25 +443,28 @@ LIMIT #{offset}, #{size}
 
 ### 4. 活动详情查询
 
-```
-GET /api/activities/{id}
-  → SELECT activity + JOIN category + JOIN user（creator）
-  → 若无记录或被软删除 → 404
-  → SELECT activity_image WHERE activity_id = ? ORDER BY sort_order
-  → SELECT tag_rel + tag WHERE activity_id = ?
-  → 浏览量 +1（UPDATE activity SET view_count = view_count + 1 WHERE id = ?）
-  → 组装 ActivityDetailResponse
+```mermaid
+flowchart TD
+    A[SELECT activity JOIN category JOIN user] --> B{记录存在?}
+    B -->|否| C[返回 404]
+    B -->|是| D[SELECT activity_image ORDER BY sort_order]
+    D --> E[SELECT tag_rel JOIN tag]
+    E --> F[UPDATE view_count + 1]
+    F --> G[组装 ActivityDetailResponse]
 ```
 
 > 浏览量递增用 `UPDATE ... SET view_count = view_count + 1`，无竞态问题（MySQL 行级锁保证原子性）。
 
 ### 5. 活动取消
 
-```
-PATCH /api/activities/{id}/cancel
-  → 查询 activity，校验 creator_id == currentUserId
-  → 校验 status 在 (1, 2, 3)，已结束/已取消不可再取消
-  → UPDATE activity SET status = 5
+```mermaid
+flowchart TD
+    A[查询 activity] --> B{creator_id == currentUserId?}
+    B -->|否| C[返回 403]
+    B -->|是| D{status 在 1,2,3?}
+    D -->|否| E[返回 400 当前状态不允许取消]
+    D -->|是| F[stateMachine.fire CANCEL]
+    F --> G[UPDATE status = 5]
 ```
 
 ### 6. 图片管理
@@ -595,20 +605,23 @@ MyBatis-Plus 3.5.16 中 `PaginationInnerInterceptor` 类不存在，无法使用
 
 ### 组件树
 
-```
-ActivityCreateView / ActivityEditView
-  └─ ActivityForm (共享表单组件)
-       ├─ RichTextEditor (Tiptap 封装)
-       ├─ ActivityImageUploader (OSS 上传封装)
-       └─ TagSelector (标签多选 chip)
-
-ActivityDetailView
-  ├─ ActivityCard (重构后) — 在其他页面作为卡片使用
-  ├─ 封面图轮播
-  ├─ 创建者信息 chip
-  ├─ 标签 chip 列表
-  ├─ 富文本内容区（v-html 消毒后内容）
-  └─ 图片列表
+```mermaid
+flowchart TD
+    subgraph 创建/编辑
+        Create[ActivityCreateView] --> Form[ActivityForm]
+        Edit[ActivityEditView] --> Form
+        Form --> RichText[RichTextEditor]
+        Form --> Uploader[ActivityImageUploader]
+        Form --> TagSel[TagSelector]
+    end
+    subgraph 详情
+        Detail[ActivityDetailView] --> Card[ActivityCard]
+        Detail --> Carousel[封面图轮播]
+        Detail --> Creator[创建者信息 chip]
+        Detail --> Tags[标签 chip 列表]
+        Detail --> Content[富文本内容区]
+        Detail --> Images[图片列表]
+    end
 ```
 
 ### HomeView 改造

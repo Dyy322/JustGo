@@ -357,24 +357,23 @@ StateMachine<TeamStatus, TeamEvent, TeamContext> teamSM =
 
 ## 状态机 vs Service 层职责分工
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    Service 层                        │
-│  - 获取领域对象当前状态                                │
-│  - 构建上下文（Context）                              │
-│  - 调用 stateMachine.fire(from, event, context)      │
-│  - 将新状态写回数据库                                 │
-│  - 执行副作用（发通知、记日志等）                       │
-└─────────────────┬───────────────────────────────────┘
-                  │ fire(from, event, context)
-                  ▼
-┌─────────────────────────────────────────────────────┐
-│                   StateMachine                       │
-│  - 查找 (from, event) 对应的转换规则                  │
-│  - 按序评估 Guard 条件                               │
-│  - 返回新状态 OR 抛出 IllegalTransitionException      │
-│  - 不碰数据库，不产生副作用                            │
-└─────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Service[Service 层]
+        A[获取领域对象当前状态]
+        B[构建上下文 Context]
+        C[调用 stateMachine.fire]
+        D[将新状态写回数据库]
+        E[执行副作用 通知/日志]
+    end
+    subgraph SM[StateMachine]
+        F[查找 from,event 对应的转换规则]
+        G[按序评估 Guard 条件]
+        H[返回新状态 OR 抛出异常]
+    end
+    A --> B --> C --> F
+    F --> G --> H
+    H --> D --> E
 ```
 
 | 职责 | StateMachine | Service 层 |
