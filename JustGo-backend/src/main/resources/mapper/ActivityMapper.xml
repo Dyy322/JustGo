@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dyu.justgobackend.mapper.activity.ActivityMapper">
+
+    <resultMap id="ListItemMap" type="com.dyu.justgobackend.dto.response.activity.ActivityListItemResponse">
+        <id column="id" property="id"/>
+        <result column="title" property="title"/>
+        <result column="cover_image" property="coverImage"/>
+        <result column="location_name" property="locationName"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="max_participants" property="maxParticipants"/>
+        <result column="current_participants" property="currentParticipants"/>
+        <result column="status" property="status"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="created_at" property="createdAt"/>
+        <association property="creator" javaType="com.dyu.justgobackend.dto.response.activity.ActivityListItemResponse$CreatorInfo">
+            <result column="creator_id" property="id"/>
+            <result column="creator_nickname" property="nickname"/>
+            <result column="creator_avatar" property="avatar"/>
+        </association>
+    </resultMap>
+
+    <select id="selectPageWithDetails" resultMap="ListItemMap">
+        SELECT a.id, a.title, a.cover_image, a.location_name,
+               a.start_time, a.end_time, a.max_participants,
+               a.current_participants, a.status,
+               a.category_id, ac.name AS category_name,
+               a.creator_id, u.nickname AS creator_nickname,
+               u.avatar AS creator_avatar, a.created_at
+        FROM activity a
+        JOIN activity_category ac ON a.category_id = ac.id
+        JOIN `user` u ON a.creator_id = u.id
+        WHERE a.deleted_at IS NULL
+        <if test="categoryId != null">
+            AND a.category_id = #{categoryId}
+        </if>
+        <if test="status != null">
+            AND a.status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND a.title LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        ORDER BY a.start_time ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*)
+        FROM activity a
+        WHERE a.deleted_at IS NULL
+        <if test="categoryId != null">
+            AND a.category_id = #{categoryId}
+        </if>
+        <if test="status != null">
+            AND a.status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND a.title LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+    </select>
+
+    <resultMap id="DetailMap" type="com.dyu.justgobackend.entity.activity.Activity">
+        <id column="id" property="id"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="title" property="title"/>
+        <result column="description" property="description"/>
+        <result column="cover_image" property="coverImage"/>
+        <result column="location_name" property="locationName"/>
+        <result column="latitude" property="latitude"/>
+        <result column="longitude" property="longitude"/>
+        <result column="address" property="address"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="max_participants" property="maxParticipants"/>
+        <result column="current_participants" property="currentParticipants"/>
+        <result column="status" property="status"/>
+        <result column="is_featured" property="isFeatured"/>
+        <result column="view_count" property="viewCount"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted_at" property="deletedAt"/>
+    </resultMap>
+
+    <select id="selectDetailById" resultMap="DetailMap">
+        SELECT * FROM activity
+        WHERE id = #{id} AND deleted_at IS NULL
+        LIMIT 1
+    </select>
+
+    <update id="updateStatusByTime">
+        UPDATE activity
+        SET status = #{toStatus}
+        WHERE status IN
+        <foreach collection="fromStatuses" item="s" open="(" separator="," close=")">
+            #{s}
+        </foreach>
+        AND start_time &lt;= #{now}
+        AND deleted_at IS NULL
+    </update>
+
+    <update id="updateEndedStatus">
+        UPDATE activity
+        SET status = #{toStatus}
+        WHERE status = #{fromStatus}
+        AND end_time IS NOT NULL
+        AND end_time &lt;= #{now}
+        AND deleted_at IS NULL
+    </update>
+
+    <select id="selectTagsByActivityId" resultType="string">
+        SELECT at.name
+        FROM activity_tag_rel rel
+        JOIN activity_tag at ON rel.tag_id = at.id
+        WHERE rel.activity_id = #{activityId}
+    </select>
+
+</mapper>
