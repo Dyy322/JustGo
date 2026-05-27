@@ -36,6 +36,21 @@ npm run format         # Prettier 格式化
 
 Prettier 配置（`.prettierrc.json`）：无分号、单引号、每行最多 100 字符、2 空格缩进。
 
+## 提交规范
+
+遵循 [Conventional Commits](https://www.conventionalcommits.org/)，提交信息使用英文，格式为 `<type>: <简短描述>`：
+
+| 类型 | 说明 |
+|------|------|
+| `feat` | 新功能或新模块 |
+| `fix` | 缺陷修复 |
+| `docs` | 文档或 CLAUDE.md 变更 |
+| `refactor` | 重构（不改变外部行为） |
+| `test` | 测试相关 |
+| `chore` | 构建、依赖、配置等杂项 |
+
+消息应简明扼要，一行说清做了什么。示例：`feat: 新增泛型状态机引擎 StateMachine`、`fix: 修复关注缓存击穿问题`。
+
 ## 关键原则
 
 - **简单需求不走火入魔**：修个 typo 不需要写方案文档，但涉及新表或新模块的必须写
