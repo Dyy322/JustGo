@@ -12,7 +12,7 @@ service/        业务层 — 所有业务规则在此，按领域拆分子包
 mapper/         持久层 — MyBatis-Plus 接口 + XML 映射文件
 entity/         数据实体 — 与表结构一一对应
 dto/            request/ 入参 + response/ 出参，与 entity 严格分离
-common/         通用组件 — 统一响应包装、上下文工具
+common/         通用组件 — 统一响应包装、状态机引擎、上下文工具
 exception/      业务异常 + 全局异常处理
 config/         Spring 配置 — CORS/Jackson/MyBatis-Plus/拦截器
 security/       认证鉴权 — JWT 提供器、拦截器、令牌黑名单
@@ -48,15 +48,7 @@ aspect/         切面 — 日志、脱敏等横切关注点
 - Java 17：`record` 替代 DTO 类、`switch` 表达式、`var`（类型明显时使用）
 - Controller 方法语义化：`follow()` 而非 `doFollow()` 
 - Service 接口 + Impl 模式，Impl 放在 `service/impl/` 下
-
-## 开发流程与设计哲学
-
-接到新功能需求时，按以下路径推进，避免上来就写代码：
-
-- **API 契约优先**：先定义 DTO（request/response）和端点签名，前后端共同确认后再写实现
-- **Service 优先于 Controller**：业务逻辑在 Service 层通过单测（或至少脑测）后，Controller 只是薄薄一层适配
-- **数据库优先于缓存**：先保证 DB 读写正确，再加缓存。缓存是优化手段，不是正确性保障
-- **提交前自检**：并发写入有无竞态？缓存失效后系统是否降级到 DB？SQL 用 `#{}` 还是 `${}`？用户数据是否校验了归属？新接口是否注册了认证拦截？
+- **新代码必须加注释**：类加 Javadoc 说明职责，公共方法加 Javadoc 说明入参/出参/异常，非显而易见的逻辑（如状态机 Guard 评估顺序、缓存失效策略）加行内注释解释 WHY
 
 ## 防御性编程原则
 
@@ -116,16 +108,6 @@ aspect/         切面 — 日志、脱敏等横切关注点
 1. **缓存前置**：热点数据提前预热到 Redis / Caffeine，不让流量打到 DB
 2. **读写分离**：写走主库，读走从库，从库可水平扩展
 3. **降级兜底**：缓存 miss 时返回静态兜底数据，比空白页好一万倍
-
-### 当前架构下的落地
-
-| 决策 | 说明 |
-|---|---|
-| 无状态服务 | JWT 认证，不依赖 Session，支持水平扩展 |
-| 游标分页 | 关注/粉丝列表使用 `(created_at, user_id)` 游标，避免 OFFSET 深分页 |
-| Redis 缓存 | 统计类数据缓存 10min TTL，写操作主动失效 |
-| 预签名直传 | 文件通过 OSS Pre-signed URL 直传，不经过后端 |
-| 令牌黑名单 | Redis 存储登出 JWT 的 jti，TTL = 令牌剩余有效期 |
 
 ## 可观测性设计
 
