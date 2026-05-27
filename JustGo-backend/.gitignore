@@ -34,3 +34,5 @@ build/
 
 ### MyBatis ###
 .mybatis/
+
+test/
