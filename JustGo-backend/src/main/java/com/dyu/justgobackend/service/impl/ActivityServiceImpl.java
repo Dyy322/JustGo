@@ -6,13 +6,14 @@ import com.dyu.justgobackend.dto.request.activity.AddActivityImageRequest;
 import com.dyu.justgobackend.dto.request.activity.CreateActivityRequest;
 import com.dyu.justgobackend.dto.request.activity.UpdateActivityRequest;
 import com.dyu.justgobackend.dto.response.activity.ActivityDetailResponse;
-import com.dyu.justgobackend.dto.response.activity.ActivityDetailResponse.CreatorInfo;
-import com.dyu.justgobackend.dto.response.activity.ActivityDetailResponse.ImageInfo;
 import com.dyu.justgobackend.dto.response.activity.ActivityListItemResponse;
 import com.dyu.justgobackend.dto.response.activity.ActivityPageResponse;
+import com.dyu.justgobackend.dto.response.activity.ActivityDetailResponse.CreatorInfo;
+import com.dyu.justgobackend.dto.response.activity.ActivityDetailResponse.ImageInfo;
 import com.dyu.justgobackend.entity.activity.Activity;
 import com.dyu.justgobackend.entity.activity.ActivityCategory;
 import com.dyu.justgobackend.entity.activity.ActivityImage;
+import com.dyu.justgobackend.entity.activity.ActivityParticipant;
 import com.dyu.justgobackend.entity.user.User;
 import com.dyu.justgobackend.enums.ActivityEvent;
 import com.dyu.justgobackend.enums.ActivityStatus;
@@ -20,9 +21,11 @@ import com.dyu.justgobackend.exception.BusinessException;
 import com.dyu.justgobackend.mapper.activity.ActivityCategoryMapper;
 import com.dyu.justgobackend.mapper.activity.ActivityImageMapper;
 import com.dyu.justgobackend.mapper.activity.ActivityMapper;
+import com.dyu.justgobackend.mapper.activity.ActivityParticipantMapper;
 import com.dyu.justgobackend.mapper.activity.ActivityTagMapper;
 import com.dyu.justgobackend.mapper.activity.ActivityTagRelMapper;
 import com.dyu.justgobackend.mapper.user.UserMapper;
+import com.dyu.justgobackend.oss.OssService;
 import com.dyu.justgobackend.security.LoginUser;
 import com.dyu.justgobackend.security.UserContext;
 import com.dyu.justgobackend.service.ActivityService;
@@ -50,6 +53,8 @@ public class ActivityServiceImpl implements ActivityService {
     private final ActivityTagMapper tagMapper;
     private final ActivityTagRelMapper tagRelMapper;
     private final UserMapper userMapper;
+    private final OssService ossService;
+    private final ActivityParticipantMapper participantMapper;
     private final StateMachine<ActivityStatus, ActivityEvent, ActivityContext> stateMachine;
 
     public ActivityServiceImpl(
@@ -59,6 +64,8 @@ public class ActivityServiceImpl implements ActivityService {
             ActivityTagMapper tagMapper,
             ActivityTagRelMapper tagRelMapper,
             UserMapper userMapper,
+            OssService ossService,
+            ActivityParticipantMapper participantMapper,
             StateMachine<ActivityStatus, ActivityEvent, ActivityContext> stateMachine) {
         this.activityMapper = activityMapper;
         this.categoryMapper = categoryMapper;
@@ -66,6 +73,8 @@ public class ActivityServiceImpl implements ActivityService {
         this.tagMapper = tagMapper;
         this.tagRelMapper = tagRelMapper;
         this.userMapper = userMapper;
+        this.ossService = ossService;
+        this.participantMapper = participantMapper;
         this.stateMachine = stateMachine;
     }
 
@@ -111,24 +120,8 @@ public class ActivityServiceImpl implements ActivityService {
         long total = activityMapper.countPage(query.categoryId(), query.status(), query.keyword());
 
         if (!items.isEmpty()) {
-            List<Long> activityIds = items.stream().map(ActivityListItemResponse::id).toList();
-            Map<Long, List<String>> tagMap = tagRelMapper.selectTagNamesByActivityIds(activityIds)
-                    .stream()
-                    .collect(Collectors.groupingBy(
-                            row -> ((Number) row.get("activityId")).longValue(),
-                            Collectors.mapping(
-                                    row -> (String) row.get("tagName"),
-                                    Collectors.toList())));
-
-            items = items.stream()
-                    .map(item -> new ActivityListItemResponse(
-                            item.id(), item.title(), item.coverImage(),
-                            item.locationName(), item.startTime(), item.endTime(),
-                            item.maxParticipants(), item.currentParticipants(),
-                            item.status(), item.categoryId(), item.categoryName(),
-                            tagMap.getOrDefault(item.id(), Collections.emptyList()),
-                            item.creator(), item.createdAt()))
-                    .toList();
+            enrichTags(items);
+            enrichCoverUrls(items);
         }
 
         return new ActivityPageResponse<>(items, total, query.page(), query.size());
@@ -197,7 +190,7 @@ public class ActivityServiceImpl implements ActivityService {
             wrapper.set(Activity::getMaxParticipants, request.maxParticipants());
             hasUpdate = true;
         }
-        if (request.coverImage() != null) {
+        if (StringUtils.hasText(request.coverImage())) {
             wrapper.set(Activity::getCoverImage, request.coverImage());
             hasUpdate = true;
         }
@@ -240,10 +233,139 @@ public class ActivityServiceImpl implements ActivityService {
     }
 
     @Override
+    @Transactional
+    public void republish(Long activityId) {
+        Activity activity = requireActivity(activityId);
+        requireCreator(activity);
+
+        ActivityStatus current = ActivityStatus.fromCode(activity.getStatus());
+        if (current != ActivityStatus.CANCELLED) {
+            throw new BusinessException(400, "只有已取消的活动才能重新发布");
+        }
+
+        ActivityStatus next = stateMachine.fire(current, ActivityEvent.REPUBLISH,
+                new ActivityContext(activity.getCurrentParticipants(), activity.getMaxParticipants(), true));
+
+        activityMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Activity>()
+                        .eq(Activity::getId, activityId)
+                        .set(Activity::getStatus, next.code()));
+    }
+
+    @Override
+    @Transactional
+    public void join(Long activityId) {
+        Long userId = currentUserId();
+        Activity activity = requireActivity(activityId);
+
+        if (participantMapper.countByActivityAndUser(activityId, userId) > 0) {
+            throw new BusinessException(400, "你已报名该活动");
+        }
+
+        ActivityStatus current = ActivityStatus.fromCode(activity.getStatus());
+        if (current == null || (current != ActivityStatus.RECRUITING && current != ActivityStatus.FULL && current != ActivityStatus.ONGOING)) {
+            throw new BusinessException(400, "当前状态不允许报名");
+        }
+
+        var updateWrapper = new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Activity>()
+                .eq(Activity::getId, activityId)
+                .setSql("current_participants = current_participants + 1")
+                .apply("(max_participants = 0 OR current_participants < max_participants)");
+        int affected = activityMapper.update(null, updateWrapper);
+        if (affected == 0) {
+            throw new BusinessException(400, "活动已满员");
+        }
+
+        activity = requireActivity(activityId);
+        ActivityContext ctx = new ActivityContext(activity.getCurrentParticipants(), activity.getMaxParticipants(), false);
+        ActivityStatus next = stateMachine.fire(current, ActivityEvent.JOIN, ctx);
+
+        activityMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Activity>()
+                        .eq(Activity::getId, activityId)
+                        .set(Activity::getStatus, next.code()));
+
+        ActivityParticipant participant = new ActivityParticipant();
+        participant.setActivityId(activityId);
+        participant.setUserId(userId);
+        participantMapper.insert(participant);
+    }
+
+    @Override
+    @Transactional
+    public void leave(Long activityId) {
+        Long userId = currentUserId();
+        Activity activity = requireActivity(activityId);
+
+        if (participantMapper.countByActivityAndUser(activityId, userId) == 0) {
+            throw new BusinessException(400, "你未报名该活动");
+        }
+
+        ActivityStatus current = ActivityStatus.fromCode(activity.getStatus());
+        if (current == null || current == ActivityStatus.ENDED || current == ActivityStatus.CANCELLED) {
+            throw new BusinessException(400, "当前状态不允许取消报名");
+        }
+
+        activityMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Activity>()
+                        .eq(Activity::getId, activityId)
+                        .setSql("current_participants = IF(current_participants > 0, current_participants - 1, 0)"));
+
+        activity = requireActivity(activityId);
+        ActivityContext ctx = new ActivityContext(activity.getCurrentParticipants(), activity.getMaxParticipants(), false);
+        ActivityStatus next = stateMachine.fire(current, ActivityEvent.JOIN, ctx);
+
+        activityMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Activity>()
+                        .eq(Activity::getId, activityId)
+                        .set(Activity::getStatus, next.code()));
+
+        participantMapper.delete(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ActivityParticipant>()
+                        .eq(ActivityParticipant::getActivityId, activityId)
+                        .eq(ActivityParticipant::getUserId, userId));
+    }
+
+    @Override
+    public boolean isJoined(Long activityId) {
+        return UserContext.get()
+                .map(loginUser -> participantMapper.countByActivityAndUser(activityId, loginUser.id()) > 0)
+                .orElse(false);
+    }
+
+    @Override
+    public ActivityPageResponse<ActivityListItemResponse> myActivities(String type, int page, int size) {
+        Long userId = currentUserId();
+        int offset = (page - 1) * size;
+
+        if ("created".equals(type)) {
+            List<ActivityListItemResponse> items = activityMapper.selectByCreatorId(userId, offset, size);
+            long total = activityMapper.countByCreatorId(userId);
+            enrichTags(items);
+            enrichCoverUrls(items);
+            return new ActivityPageResponse<>(items, total, page, size);
+        }
+
+        if ("joined".equals(type)) {
+            List<Long> joinedIds = participantMapper.selectJoinedActivityIds(userId);
+            if (joinedIds.isEmpty()) {
+                return new ActivityPageResponse<>(Collections.emptyList(), 0, page, size);
+            }
+            List<ActivityListItemResponse> items = activityMapper.selectByIds(joinedIds, offset, size);
+            long total = activityMapper.countByIds(joinedIds);
+            enrichTags(items);
+            enrichCoverUrls(items);
+            return new ActivityPageResponse<>(items, total, page, size);
+        }
+
+        throw new BusinessException(400, "type 必须为 created 或 joined");
+    }
+
+    @Override
     public List<ImageInfo> listImages(Long activityId) {
         requireActivity(activityId);
         return imageMapper.selectByActivityId(activityId).stream()
-                .map(img -> new ImageInfo(img.getId(), img.getUrl(), img.getSortOrder()))
+                .map(img -> new ImageInfo(img.getId(), toDisplayUrl(img.getUrl()), img.getSortOrder()))
                 .toList();
     }
 
@@ -265,7 +387,7 @@ public class ActivityServiceImpl implements ActivityService {
             img.setUrl(requests.get(i).objectKey());
             img.setSortOrder(existing + i);
             imageMapper.insert(img);
-            result.add(new ImageInfo(img.getId(), img.getUrl(), img.getSortOrder()));
+            result.add(new ImageInfo(img.getId(), toDisplayUrl(img.getUrl()), img.getSortOrder()));
         }
         return result;
     }
@@ -282,12 +404,43 @@ public class ActivityServiceImpl implements ActivityService {
         imageMapper.deleteById(imageId);
     }
 
+    private String toDisplayUrl(String value) {
+        if (!StringUtils.hasText(value) || value.startsWith("http://") || value.startsWith("https://")) {
+            return value;
+        }
+        return ossService.generatePresignedGetUrl(value);
+    }
+
+    private void enrichTags(List<ActivityListItemResponse> items) {
+        if (items.isEmpty()) return;
+        List<Long> activityIds = items.stream().map(ActivityListItemResponse::getId).toList();
+        Map<Long, List<String>> tagMap = tagRelMapper.selectTagNamesByActivityIds(activityIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        row -> ((Number) row.get("activityId")).longValue(),
+                        Collectors.mapping(
+                                row -> (String) row.get("tagName"),
+                                Collectors.toList())));
+        for (ActivityListItemResponse item : items) {
+            item.setTags(tagMap.getOrDefault(item.getId(), Collections.emptyList()));
+        }
+    }
+
+    private void enrichCoverUrls(List<ActivityListItemResponse> items) {
+        for (ActivityListItemResponse item : items) {
+            item.setCoverImage(toDisplayUrl(item.getCoverImage()));
+            if (item.getCreator() != null) {
+                item.getCreator().setAvatar(toDisplayUrl(item.getCreator().getAvatar()));
+            }
+        }
+    }
+
     private ActivityDetailResponse buildDetail(Activity activity) {
         ActivityCategory category = categoryMapper.selectById(activity.getCategoryId());
         User creator = userMapper.selectById(activity.getCreatorId());
 
         List<ImageInfo> images = imageMapper.selectByActivityId(activity.getId()).stream()
-                .map(img -> new ImageInfo(img.getId(), img.getUrl(), img.getSortOrder()))
+                .map(img -> new ImageInfo(img.getId(), toDisplayUrl(img.getUrl()), img.getSortOrder()))
                 .toList();
 
         List<String> tags = activityMapper.selectTagsByActivityId(activity.getId());
@@ -296,7 +449,7 @@ public class ActivityServiceImpl implements ActivityService {
                 activity.getId(),
                 activity.getTitle(),
                 activity.getDescription(),
-                activity.getCoverImage(),
+                toDisplayUrl(activity.getCoverImage()),
                 activity.getLocationName(),
                 activity.getLatitude(),
                 activity.getLongitude(),
@@ -310,7 +463,7 @@ public class ActivityServiceImpl implements ActivityService {
                 category != null ? category.getName() : null,
                 images,
                 tags,
-                creator != null ? new CreatorInfo(creator.getId(), creator.getNickname(), creator.getAvatar()) : null,
+                creator != null ? new CreatorInfo(creator.getId(), creator.getNickname(), toDisplayUrl(creator.getAvatar())) : null,
                 activity.getViewCount(),
                 activity.getCreatedAt(),
                 activity.getUpdatedAt()
@@ -347,5 +500,4 @@ public class ActivityServiceImpl implements ActivityService {
                 .map(LoginUser::id)
                 .orElseThrow(() -> new BusinessException(401, "请先登录"));
     }
-
 }

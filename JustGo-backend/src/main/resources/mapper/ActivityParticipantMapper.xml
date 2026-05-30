@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dyu.justgobackend.mapper.activity.ActivityParticipantMapper">
+
+    <select id="countByActivityAndUser" resultType="int">
+        SELECT COUNT(1)
+        FROM activity_participant
+        WHERE activity_id = #{activityId}
+          AND user_id = #{userId}
+    </select>
+
+    <select id="selectJoinedActivityIds" resultType="long">
+        SELECT activity_id
+        FROM activity_participant
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC
+    </select>
+
+</mapper>

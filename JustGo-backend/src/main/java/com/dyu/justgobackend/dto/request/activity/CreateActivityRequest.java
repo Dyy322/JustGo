@@ -15,7 +15,7 @@ public record CreateActivityRequest(
         @Size(max = 300) String address,
         @NotNull @Future LocalDateTime startTime,
         @Future LocalDateTime endTime,
-        @Positive @Max(99999) Integer maxParticipants,
+        @PositiveOrZero @Max(99999) Integer maxParticipants,
         @Size(max = 20) List<@Positive Long> tagIds,
         @Size(max = 500) String coverImage
 ) {}

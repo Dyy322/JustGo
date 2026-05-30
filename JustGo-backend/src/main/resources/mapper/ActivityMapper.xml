@@ -117,4 +117,52 @@
         WHERE rel.activity_id = #{activityId}
     </select>
 
+    <select id="selectByCreatorId" resultMap="ListItemMap">
+        SELECT a.id, a.title, a.cover_image, a.location_name,
+               a.start_time, a.end_time, a.max_participants,
+               a.current_participants, a.status,
+               a.category_id, ac.name AS category_name,
+               a.creator_id, u.nickname AS creator_nickname,
+               u.avatar AS creator_avatar, a.created_at
+        FROM activity a
+        JOIN activity_category ac ON a.category_id = ac.id
+        JOIN `user` u ON a.creator_id = u.id
+        WHERE a.creator_id = #{creatorId} AND a.deleted_at IS NULL
+        ORDER BY a.created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countByCreatorId" resultType="long">
+        SELECT COUNT(*) FROM activity
+        WHERE creator_id = #{creatorId} AND deleted_at IS NULL
+    </select>
+
+    <select id="selectByIds" resultMap="ListItemMap">
+        SELECT a.id, a.title, a.cover_image, a.location_name,
+               a.start_time, a.end_time, a.max_participants,
+               a.current_participants, a.status,
+               a.category_id, ac.name AS category_name,
+               a.creator_id, u.nickname AS creator_nickname,
+               u.avatar AS creator_avatar, a.created_at
+        FROM activity a
+        JOIN activity_category ac ON a.category_id = ac.id
+        JOIN `user` u ON a.creator_id = u.id
+        WHERE a.id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND a.deleted_at IS NULL
+        ORDER BY a.created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countByIds" resultType="long">
+        SELECT COUNT(*) FROM activity
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND deleted_at IS NULL
+    </select>
+
 </mapper>

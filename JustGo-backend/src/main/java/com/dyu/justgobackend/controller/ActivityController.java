@@ -11,6 +11,7 @@ import com.dyu.justgobackend.dto.response.activity.ActivityListItemResponse;
 import com.dyu.justgobackend.dto.response.activity.ActivityPageResponse;
 import com.dyu.justgobackend.service.ActivityService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -53,6 +54,37 @@ public class ActivityController {
     public ApiResponse<Void> cancel(@PathVariable @Positive Long id) {
         activityService.cancel(id);
         return ApiResponse.success(null);
+    }
+
+    @PatchMapping("/activities/{id}/republish")
+    public ApiResponse<Void> republish(@PathVariable @Positive Long id) {
+        activityService.republish(id);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/activities/{id}/join")
+    public ApiResponse<Void> join(@PathVariable @Positive Long id) {
+        activityService.join(id);
+        return ApiResponse.success(null);
+    }
+
+    @DeleteMapping("/activities/{id}/join")
+    public ApiResponse<Void> leave(@PathVariable @Positive Long id) {
+        activityService.leave(id);
+        return ApiResponse.success(null);
+    }
+
+    @GetMapping("/activities/{id}/joined")
+    public ApiResponse<Boolean> isJoined(@PathVariable @Positive Long id) {
+        return ApiResponse.success(activityService.isJoined(id));
+    }
+
+    @GetMapping("/users/me/activities")
+    public ApiResponse<ActivityPageResponse<ActivityListItemResponse>> myActivities(
+            @RequestParam(defaultValue = "created") String type,
+            @RequestParam(defaultValue = "1") @Min(1) int page,
+            @RequestParam(defaultValue = "10") @Min(1) int size) {
+        return ApiResponse.success(activityService.myActivities(type, page, size));
     }
 
     @GetMapping("/activities/{id}/images")

@@ -7,5 +7,6 @@ public enum ActivityEvent {
     JOIN,
     CANCEL,
     START,
-    END
+    END,
+    REPUBLISH
 }

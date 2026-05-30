@@ -23,6 +23,16 @@ public interface ActivityService {
 
     void cancel(Long activityId);
 
+    void republish(Long activityId);
+
+    void join(Long activityId);
+
+    void leave(Long activityId);
+
+    boolean isJoined(Long activityId);
+
+    ActivityPageResponse<ActivityListItemResponse> myActivities(String type, int page, int size);
+
     List<ImageInfo> listImages(Long activityId);
 
     List<ImageInfo> addImages(Long activityId, List<AddActivityImageRequest> requests);

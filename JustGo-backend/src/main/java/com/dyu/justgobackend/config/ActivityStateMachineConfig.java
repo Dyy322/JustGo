@@ -21,6 +21,8 @@ public class ActivityStateMachineConfig {
                 .add(RECRUITING, JOIN, RECRUITING)
                 // JOIN: 满员后有人取消 → 回到 RECRUITING
                 .add(FULL, JOIN, RECRUITING, ctx -> !ctx.isFull())
+                // JOIN: 进行中加入 → 保持 ONGOING
+                .add(ONGOING, JOIN, ONGOING)
 
                 // CANCEL: 招募中 / 已满员 / 进行中均可取消
                 .add(RECRUITING, CANCEL, CANCELLED)
@@ -33,6 +35,9 @@ public class ActivityStateMachineConfig {
 
                 // END: 活动结束
                 .add(ONGOING, END, ENDED)
+
+                // REPUBLISH: 已取消的活动重新发布
+                .add(CANCELLED, REPUBLISH, RECRUITING)
 
                 .build();
     }

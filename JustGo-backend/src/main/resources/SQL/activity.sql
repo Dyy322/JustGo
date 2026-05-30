@@ -82,6 +82,19 @@ CREATE TABLE IF NOT EXISTS activity_tag_rel (
     CONSTRAINT fk_tag_rel_tag FOREIGN KEY (tag_id) REFERENCES activity_tag (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='活动-标签关联';
 
+-- 活动参与记录
+CREATE TABLE IF NOT EXISTS activity_participant (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+    activity_id BIGINT UNSIGNED NOT NULL COMMENT '活动ID',
+    user_id BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '报名时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_activity_user (activity_id, user_id),
+    KEY idx_user (user_id),
+    CONSTRAINT fk_participant_activity FOREIGN KEY (activity_id) REFERENCES activity (id),
+    CONSTRAINT fk_participant_user FOREIGN KEY (user_id) REFERENCES `user` (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='活动参与记录';
+
 -- 种子数据：分类
 INSERT IGNORE INTO activity_category (name, icon, sort_order) VALUES
 ('展览', '🎨', 1),
