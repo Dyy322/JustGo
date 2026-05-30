@@ -49,6 +49,8 @@ app:
     # 允许访问的前端域名列表
     allowed-origins:
       - http://localhost:5173
+      - http://127.0.0.1:5173
+      - http://192.168.1.7:5173
       - http://localhost:3000
     # 允许的 HTTP 请求方法
     allowed-methods:
