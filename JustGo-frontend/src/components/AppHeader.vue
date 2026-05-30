@@ -3,9 +3,11 @@ import { ref, watch } from 'vue'
 import { Bell, Location, Plus, Search, MapLocation, Tickets } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import { useMediaQuery } from '@/composables/useMediaQuery'
 
 const auth = useAuthStore()
 const router = useRouter()
+const isMobile = useMediaQuery('(max-width: 900px)')
 
 watch(
   () => auth.currentUser?.avatar,
@@ -43,11 +45,11 @@ const avatarFailed = ref(false)
     <div class="header-left">
       <span class="header-city">
         <el-icon><Location /></el-icon>
-        上海
+        <span class="header-city-name" v-if="!isMobile">上海</span>
       </span>
     </div>
 
-    <div class="header-center">
+    <div class="header-center" v-if="!isMobile">
       <router-link to="/activities/create" class="create-btn">
         <span>发布活动</span>
         <span class="create-icon"
@@ -155,6 +157,10 @@ const avatarFailed = ref(false)
   width: min(32vw, 360px);
 }
 
+.search-input-mobile {
+  width: 100%;
+}
+
 .create-btn {
   display: inline-flex;
   align-items: center;
@@ -243,28 +249,10 @@ const avatarFailed = ref(false)
 
 @media (max-width: 900px) {
   .app-header {
-    height: auto;
-    padding: 12px 16px;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-
-  .header-center {
-    order: 3;
-    width: 100%;
-    justify-content: space-between;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scrollbar-width: none;
-  }
-
-  .header-center::-webkit-scrollbar {
-    display: none;
-  }
-
-  .search-input {
-    min-width: 210px;
-    flex: 1;
+    height: 56px;
+    padding: 0 12px;
+    flex-wrap: nowrap;
+    gap: 0;
   }
 }
 </style>

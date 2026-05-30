@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getErrorMessage } from '@/api/error'
-import { getFollowers, getFollowing, followUser } from '@/api/social'
-import type { FollowUserItem } from '@/types/api'
+import { getFollowers, getFollowing, followUser, unfollowUser, getFollowRelation } from '@/api/social'
+import { useAuthStore } from '@/stores/auth'
+import type { FollowRelation, FollowUserItem } from '@/types/api'
 
 const props = defineProps<{
   type: 'followers' | 'following'
 }>()
 
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
 
 const list = ref<FollowUserItem[]>([])
 const nextCursor = ref<string | null>(null)
@@ -18,6 +21,8 @@ const hasMore = ref(false)
 const loading = ref(false)
 const loadingMore = ref(false)
 const firstLoadDone = ref(false)
+const relationMap = ref<Record<number, FollowRelation>>({})
+const followLoadingMap = ref<Record<number, boolean>>({})
 
 const title = computed(() => (props.type === 'followers' ? '粉丝' : '关注'))
 const fetchFn = computed(() => (props.type === 'followers' ? getFollowers : getFollowing))
@@ -45,6 +50,45 @@ function avatarGradient(user: FollowUserItem): string {
   return tones[user.userId % tones.length]!
 }
 
+function goToProfile(user: FollowUserItem) {
+  router.push(`/profile/${user.userId}`)
+}
+
+function isOwnUser(user: FollowUserItem): boolean {
+  return auth.currentUser?.id === user.userId
+}
+
+function relationOf(userId: number): FollowRelation {
+  return relationMap.value[userId] ?? { following: false, followsYou: false }
+}
+
+function followButtonLabel(user: FollowUserItem): string {
+  const relation = relationOf(user.userId)
+  if (relation.following && relation.followsYou) return '互相关注'
+  if (relation.following) return '已关注'
+  return '关注'
+}
+
+async function syncRelations(users: FollowUserItem[]) {
+  const ids = users
+    .map((user) => user.userId)
+    .filter((userId) => userId !== auth.currentUser?.id)
+
+  if (ids.length === 0) return
+
+  const results = await Promise.allSettled(ids.map((userId) => getFollowRelation(userId)))
+  const nextMap = { ...relationMap.value }
+
+  results.forEach((result, index) => {
+    const userId = ids[index]!
+    if (result.status === 'fulfilled' && result.value.data.code === 0) {
+      nextMap[userId] = result.value.data.data
+    }
+  })
+
+  relationMap.value = nextMap
+}
+
 async function fetchFirstPage() {
   const id = userIdFromRoute()
   if (!id) return
@@ -57,6 +101,7 @@ async function fetchFirstPage() {
       list.value = page.items
       nextCursor.value = page.nextCursor
       hasMore.value = page.hasMore
+      await syncRelations(page.items)
     } else {
       ElMessage.error(res.data.message || '加载失败')
     }
@@ -80,6 +125,7 @@ async function loadMore() {
       list.value = [...list.value, ...page.items]
       nextCursor.value = page.nextCursor
       hasMore.value = page.hasMore
+      await syncRelations(page.items)
     } else {
       ElMessage.error(res.data.message || '加载失败')
     }
@@ -91,17 +137,31 @@ async function loadMore() {
 }
 
 async function handleToggleFollow(user: FollowUserItem) {
+  if (isOwnUser(user)) return
+
+  followLoadingMap.value = { ...followLoadingMap.value, [user.userId]: true }
+  const relation = relationOf(user.userId)
+
   try {
-    // Optimistically update; the real state comes from the server on next fetch
-    if (true) {
-      // Since FollowUserItem doesn't carry `isFollowing`, we treat every click as "follow".
-      // In a real scenario you'd track following state per user, but for this MVP
-      // we just call followUser each time (the server handles idempotency / toggle).
+    if (relation.following) {
+      await unfollowUser(user.userId)
+      relationMap.value = {
+        ...relationMap.value,
+        [user.userId]: { ...relation, following: false },
+      }
+      ElMessage.success(`已取消关注 @${user.username}`)
+    } else {
       await followUser(user.userId)
+      relationMap.value = {
+        ...relationMap.value,
+        [user.userId]: { ...relation, following: true },
+      }
       ElMessage.success(`已关注 @${user.username}`)
     }
   } catch (err) {
     ElMessage.error(getErrorMessage(err, '操作失败，请稍后重试'))
+  } finally {
+    followLoadingMap.value = { ...followLoadingMap.value, [user.userId]: false }
   }
 }
 
@@ -110,6 +170,8 @@ function resetAndFetch() {
   nextCursor.value = null
   hasMore.value = false
   firstLoadDone.value = false
+  relationMap.value = {}
+  followLoadingMap.value = {}
   fetchFirstPage()
 }
 
@@ -153,7 +215,16 @@ watch(() => route.params.id, resetAndFetch)
 
     <!-- User list -->
     <div v-else class="user-list">
-      <div v-for="user in list" :key="user.userId" class="user-row">
+      <div
+        v-for="user in list"
+        :key="user.userId"
+        class="user-row"
+        role="button"
+        tabindex="0"
+        @click="goToProfile(user)"
+        @keydown.enter.prevent="goToProfile(user)"
+        @keydown.space.prevent="goToProfile(user)"
+      >
         <div class="user-avatar" :style="{ background: avatarGradient(user) }">
           <img
             v-if="user.avatar && !avatarFailed.has(user.userId)"
@@ -166,8 +237,15 @@ watch(() => route.params.id, resetAndFetch)
           <span class="user-nickname">{{ displayName(user) }}</span>
           <span class="user-username">@{{ user.username }}</span>
         </div>
-        <el-button size="small" class="follow-btn" @click="handleToggleFollow(user)">
-          关注
+        <el-button
+          v-if="!isOwnUser(user)"
+          size="small"
+          class="follow-btn"
+          :class="{ secondary: relationOf(user.userId).following }"
+          :loading="followLoadingMap[user.userId]"
+          @click.stop="handleToggleFollow(user)"
+        >
+          {{ followButtonLabel(user) }}
         </el-button>
       </div>
 
@@ -257,6 +335,18 @@ watch(() => route.params.id, resetAndFetch)
   padding: 16px 0;
   border-bottom: 1px solid var(--jg-line);
   animation: row-in 360ms var(--jg-ease) both;
+  cursor: pointer;
+  transition:
+    transform 180ms var(--jg-ease),
+    background-color 180ms var(--jg-ease);
+}
+
+.user-row:hover {
+  transform: translateX(2px);
+}
+
+.user-row:active {
+  transform: scale(0.995);
 }
 
 .user-avatar {
@@ -317,6 +407,15 @@ watch(() => route.params.id, resetAndFetch)
   height: 30px;
   font-size: 13px;
   border-radius: 999px;
+}
+
+.follow-btn.secondary {
+  --el-button-bg-color: rgba(252, 251, 247, 0.86);
+  --el-button-border-color: rgba(28, 30, 24, 0.12);
+  --el-button-text-color: var(--jg-accent-deep);
+  --el-button-hover-bg-color: var(--jg-accent-soft);
+  --el-button-hover-border-color: rgba(84, 116, 106, 0.22);
+  --el-button-hover-text-color: var(--jg-accent-deep);
 }
 
 /* Load more */

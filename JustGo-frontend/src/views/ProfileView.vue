@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getUserPublic } from '@/api/user'
 import { followUser, unfollowUser, getFollowStats, getFollowRelation } from '@/api/social'
@@ -8,7 +8,9 @@ import { listMyActivities } from '@/api/activity'
 import { ElMessage } from 'element-plus'
 import { getErrorMessage } from '@/api/error'
 import ActivityCard from '@/components/ActivityCard.vue'
+import WaterfallActivityCard from '@/components/WaterfallActivityCard.vue'
 import ImageViewer from '@/components/ImageViewer.vue'
+import { useMediaQuery } from '@/composables/useMediaQuery'
 import type {
   UserPublicProfile,
   FollowStats,
@@ -17,8 +19,8 @@ import type {
 } from '@/types/api'
 
 const route = useRoute()
-const router = useRouter()
 const auth = useAuthStore()
+const isMobile = useMediaQuery('(max-width: 900px)')
 
 const profile = ref<UserPublicProfile | null>(null)
 const stats = ref<FollowStats>({ followingCount: 0, followerCount: 0 })
@@ -43,6 +45,12 @@ const relationLabel = computed(() => {
   if (relation.value.following && relation.value.followsYou) return '互相关注'
   if (relation.value.followsYou) return '关注了你'
   return ''
+})
+
+const followButtonLabel = computed(() => {
+  if (relation.value.following && relation.value.followsYou) return '互相关注'
+  if (relation.value.following) return '已关注'
+  return '关注'
 })
 
 async function fetchProfile() {
@@ -156,7 +164,7 @@ watch(
               :type="relation.following ? 'default' : 'primary'"
               :loading="followLoading"
               @click="handleFollow"
-              >{{ relation.following ? '已关注' : '关注' }}</el-button
+              >{{ followButtonLabel }}</el-button
             >
             <el-button>私信</el-button>
           </template>
@@ -183,14 +191,24 @@ watch(
     </div>
     <div class="profile-content">
       <!-- Loading -->
-      <div v-if="activityLoading" class="activity-skeleton">
-        <div v-for="i in 3" :key="i" class="skeleton-card">
-          <div class="skeleton-img" />
-          <div class="skeleton-body">
-            <div class="skeleton-line w80" />
-            <div class="skeleton-line w60" />
+      <div v-if="activityLoading" :class="isMobile ? 'activity-waterfall' : 'activity-list'">
+        <template v-if="isMobile">
+          <div v-for="i in 6" :key="i" class="skeleton-waterfall-card">
+            <div class="sk-img" :style="{ aspectRatio: ['3/4', '4/5', '1/1', '4/3', '3/5', '3/4'][i - 1] }" />
+            <div class="sk-line w80" />
+            <div class="sk-line w40" />
           </div>
-        </div>
+        </template>
+        <template v-else>
+          <div v-for="i in 3" :key="i" class="skeleton-card">
+            <div class="skeleton-img" />
+            <div class="skeleton-body">
+              <div class="skeleton-line w80" />
+              <div class="skeleton-line w60" />
+              <div class="skeleton-line w40" />
+            </div>
+          </div>
+        </template>
       </div>
       <!-- Error -->
       <div v-else-if="activityError" class="activity-empty">
@@ -198,8 +216,17 @@ watch(
         <el-button size="small" @click="loadActivities">重试</el-button>
       </div>
       <!-- Activities -->
-      <div v-else-if="activities.length > 0" class="activity-list">
-        <ActivityCard v-for="a in activities" :key="a.id" :activity="a" />
+      <div
+        v-else-if="activities.length > 0"
+        :class="isMobile ? 'activity-waterfall' : 'activity-list'"
+      >
+        <WaterfallActivityCard
+          v-if="isMobile"
+          v-for="a in activities"
+          :key="a.id"
+          :activity="a"
+        />
+        <ActivityCard v-else v-for="a in activities" :key="a.id" :activity="a" />
       </div>
       <!-- Empty -->
       <el-empty
@@ -358,18 +385,27 @@ watch(
 }
 .profile-content {
   padding: 22px 0 40px;
-  max-width: 760px;
+  max-width: 780px;
 }
 .activity-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  padding-bottom: 40px;
+}
+.activity-waterfall {
+  column-count: 2;
+  column-gap: 8px;
   padding-bottom: 40px;
 }
 .activity-empty {
   text-align: center;
-  padding: 60px 0;
+  padding: 64px 20px;
   color: var(--jg-muted);
+  font-size: 14px;
+  background: rgba(252, 251, 247, 0.62);
+  border: 1px dashed var(--jg-line-strong);
+  border-radius: var(--jg-radius-lg);
 }
 .activity-empty .el-button {
   margin-top: 12px;
@@ -379,18 +415,34 @@ watch(
   flex-direction: column;
   gap: 12px;
 }
+.skeleton-waterfall-card {
+  break-inside: avoid;
+  margin-bottom: 10px;
+  background: rgba(252, 251, 247, 0.78);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--jg-line);
+}
 .skeleton-card {
   display: flex;
   background: rgba(252, 251, 247, 0.8);
   border-radius: var(--jg-radius-md);
   overflow: hidden;
   box-shadow: var(--jg-shadow-card);
+  border: 1px solid var(--jg-line);
 }
 .skeleton-img {
   width: 140px;
   min-height: 120px;
   flex-shrink: 0;
-  background: #edeae2;
+  background: linear-gradient(90deg, #edeae2, #f8f6f0, #edeae2);
+  background-size: 220% 100%;
+  animation: shimmer 1.2s ease-out infinite;
+}
+.sk-img {
+  background: linear-gradient(90deg, #edeae2, #f8f6f0, #edeae2);
+  background-size: 220% 100%;
+  animation: shimmer 1.2s ease-out infinite;
 }
 .skeleton-body {
   flex: 1;
@@ -401,8 +453,18 @@ watch(
 }
 .skeleton-line {
   height: 14px;
-  background: #edeae2;
+  background: linear-gradient(90deg, #edeae2, #f8f6f0, #edeae2);
+  background-size: 220% 100%;
+  animation: shimmer 1.2s ease-out infinite;
   border-radius: 8px;
+}
+.sk-line {
+  height: 12px;
+  margin: 8px 10px;
+  background: linear-gradient(90deg, #edeae2, #f8f6f0, #edeae2);
+  background-size: 220% 100%;
+  animation: shimmer 1.2s ease-out infinite;
+  border-radius: 4px;
 }
 .skeleton-line.w80 {
   width: 80%;
@@ -410,10 +472,22 @@ watch(
 .skeleton-line.w60 {
   width: 60%;
 }
+.skeleton-line.w40,
+.sk-line.w40 {
+  width: 40%;
+}
+.sk-line.w80 {
+  width: 80%;
+}
 @keyframes profile-in {
   from {
     opacity: 0;
     transform: translateY(18px);
+  }
+}
+@keyframes shimmer {
+  to {
+    background-position: -220% 0;
   }
 }
 @media (max-width: 760px) {
@@ -435,6 +509,12 @@ watch(
   }
   .info-actions {
     flex-wrap: wrap;
+  }
+  .profile-content {
+    max-width: none;
+  }
+  .activity-list {
+    gap: 12px;
   }
 }
 </style>

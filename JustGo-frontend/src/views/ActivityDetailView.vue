@@ -48,6 +48,11 @@ const isCreator = computed(() =>
   activity.value ? auth.currentUser?.id === activity.value.creator.id : false,
 )
 
+function goToCreatorProfile() {
+  if (!activity.value) return
+  router.push(`/profile/${activity.value.creator.id}`)
+}
+
 function formatDate(dt: string) {
   const d = new Date(dt)
   const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
@@ -210,7 +215,14 @@ onMounted(() => {
       </div>
 
       <!-- Creator bar -->
-      <div class="creator-bar">
+      <div
+        class="creator-bar"
+        role="button"
+        tabindex="0"
+        @click="goToCreatorProfile"
+        @keydown.enter.prevent="goToCreatorProfile"
+        @keydown.space.prevent="goToCreatorProfile"
+      >
         <div class="creator-avatar">
           <img
             v-if="activity.creator.avatar"
@@ -408,6 +420,19 @@ onMounted(() => {
   border-radius: 18px;
   box-shadow: var(--jg-shadow-card);
   backdrop-filter: blur(16px);
+  cursor: pointer;
+  transition:
+    transform 180ms var(--jg-ease),
+    box-shadow 180ms var(--jg-ease),
+    border-color 180ms var(--jg-ease);
+}
+.creator-bar:hover {
+  transform: translateY(-1px);
+  border-color: rgba(84, 116, 106, 0.24);
+  box-shadow: 0 16px 34px rgba(44, 49, 38, 0.1);
+}
+.creator-bar:active {
+  transform: translateY(0) scale(0.995);
 }
 .creator-avatar {
   width: 42px;

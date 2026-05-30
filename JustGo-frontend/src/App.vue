@@ -4,10 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useMediaQuery } from '@/composables/useMediaQuery'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const isMobile = useMediaQuery('(max-width: 900px)')
 const isAuthPage = () => route.path === '/login' || route.path === '/register'
 
 // 退出登录或 token 失效时自动跳转登录页
@@ -39,7 +41,7 @@ onMounted(async () => {
   <div v-else class="app-layout">
     <AppSidebar />
     <div class="main-area">
-      <AppHeader />
+      <AppHeader v-if="!isMobile" />
       <main class="main-content">
         <router-view />
       </main>
@@ -260,18 +262,23 @@ a:active,
 @media (max-width: 900px) {
   .app-layout {
     display: block;
-    height: auto;
-    min-height: 100dvh;
-    overflow: visible;
+    height: 100dvh;
+    overflow: hidden;
   }
 
   .main-area {
-    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
   }
 
   .main-content {
-    overflow: visible;
-    padding-bottom: 86px;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 78px;
   }
 }
 </style>

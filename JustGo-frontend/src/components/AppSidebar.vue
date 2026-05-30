@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   House,
   Setting,
   ChatDotSquare,
   Calendar,
   Search,
+  Plus,
+  User,
   DArrowLeft,
   DArrowRight,
 } from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
 
-const router = useRouter()
 const route = useRoute()
+const auth = useAuthStore()
 const collapsed = ref(false)
 const collapsedWidth = '68px'
 const expandedWidth = '180px'
@@ -36,6 +39,17 @@ const navItems: NavItem[] = [
   { path: '/', label: '我的行程', icon: Calendar },
   { path: '/', label: '消息', icon: ChatDotSquare },
 ]
+
+const mobileNavItems = computed<NavItem[]>(() => [
+  { path: '/', label: '首页', icon: House },
+  { path: '/activities/create', label: '发布', icon: Plus },
+  { path: '/settings', label: '设置', icon: Setting },
+  {
+    path: auth.currentUser ? `/profile/${auth.currentUser.id}` : '/settings',
+    label: '我的',
+    icon: User,
+  },
+])
 
 function isActive(item: NavItem): boolean {
   if (item.path === '/') return route.path === '/'
@@ -78,6 +92,19 @@ function isActive(item: NavItem): boolean {
           <DArrowLeft v-else />
         </el-icon>
       </button>
+    </div>
+
+    <div class="mobile-nav">
+      <router-link
+        v-for="item in mobileNavItems"
+        :key="item.label"
+        :to="item.path"
+        class="mobile-nav-item"
+        :class="{ active: isActive(item) }"
+      >
+        <el-icon :size="20"><component :is="item.icon" /></el-icon>
+        <span>{{ item.label }}</span>
+      </router-link>
     </div>
   </aside>
 </template>
@@ -224,24 +251,46 @@ function isActive(item: NavItem): boolean {
 
   .brand-mark,
   .sidebar-bottom,
-  .nav-label {
+  .sidebar-nav {
     display: none;
   }
 
-  .sidebar-nav {
+  .mobile-nav {
+    display: flex;
     padding: 8px;
-    flex-direction: row;
+    height: 100%;
     justify-content: space-around;
+    align-items: center;
   }
 
-  .nav-item {
+  .mobile-nav-item {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    padding: 12px 8px;
+    gap: 4px;
+    padding: 8px 4px;
+    color: var(--jg-muted);
+    text-decoration: none;
+    border-radius: 14px;
+    font-size: 11px;
+    font-weight: 600;
   }
 
-  .nav-item:hover {
-    transform: translateY(-1px);
+  .mobile-nav-item.active {
+    color: var(--jg-accent-deep);
+    background: rgba(84, 116, 106, 0.12);
+  }
+
+  .mobile-nav-item:active {
+    transform: translateY(1px) scale(0.99);
+  }
+}
+
+@media (min-width: 901px) {
+  .mobile-nav {
+    display: none;
   }
 }
 </style>

@@ -1,17 +1,34 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, computed, watch } from 'vue'
+import { Search } from '@element-plus/icons-vue'
 import ActivityCard from '@/components/ActivityCard.vue'
+import WaterfallActivityCard from '@/components/WaterfallActivityCard.vue'
+import CollapsibleMap from '@/components/CollapsibleMap.vue'
+import PullToRefresh from '@/components/PullToRefresh.vue'
 import { listActivities } from '@/api/activity'
 import { listCategories } from '@/api/category'
 import { getErrorMessage } from '@/api/error'
+import { useMediaQuery } from '@/composables/useMediaQuery'
+import { useInfiniteScroll } from '@/composables/useInfiniteScroll'
+import { useAuthStore } from '@/stores/auth'
 import type { ActivityListItemResponse, CategoryResponse } from '@/types/api'
+
+const isMobile = useMediaQuery('(max-width: 900px)')
+const auth = useAuthStore()
 
 const categories = ref<CategoryResponse[]>([])
 const activeCategory = ref(0)
 const activities = ref<ActivityListItemResponse[]>([])
 const loading = ref(true)
 const error = ref('')
+const mapCollapsed = ref(false)
+const bootstrapped = ref(false)
+
+const page = ref(1)
+const hasMore = ref(true)
+const loadingMore = ref(false)
+const refreshing = ref(false)
+const PAGE_SIZE = 20
 
 const hotTopics = ['#周末去哪儿', '#骑行', '#看展搭子', '#飞盘']
 
@@ -24,15 +41,36 @@ async function loadCategories() {
   }
 }
 
-async function loadActivities() {
+async function refreshHomeFeed() {
   loading.value = true
+  hasMore.value = true
+  page.value = 1
+  await Promise.all([loadCategories(), loadActivities(true)])
+}
+
+async function loadActivities(reset = false) {
+  if (reset) {
+    page.value = 1
+    refreshing.value = true
+  } else {
+    if (!hasMore.value || loadingMore.value) return
+    loadingMore.value = true
+    page.value++
+  }
+
   error.value = ''
+
   try {
-    const params: Record<string, number> = { page: 1, size: 20 }
+    const params: Record<string, number> = { page: page.value, size: PAGE_SIZE }
     if (activeCategory.value > 0) params.categoryId = activeCategory.value
     const { data } = await listActivities(params)
     if (data.code === 0) {
-      activities.value = data.data.items
+      if (reset) {
+        activities.value = data.data.items
+      } else {
+        activities.value = [...activities.value, ...data.data.items]
+      }
+      hasMore.value = data.data.items.length === PAGE_SIZE
     } else {
       error.value = data.message
     }
@@ -40,22 +78,126 @@ async function loadActivities() {
     error.value = getErrorMessage(err, '加载失败')
   } finally {
     loading.value = false
+    loadingMore.value = false
+    refreshing.value = false
   }
 }
 
 function selectCategory(id: number) {
   activeCategory.value = id
-  loadActivities()
+  loadActivities(true)
 }
 
-onMounted(() => {
-  loadCategories()
-  loadActivities()
+async function handleRefresh() {
+  await loadActivities(true)
+}
+
+async function handleLoadMore() {
+  await loadActivities(false)
+}
+
+const infiniteEnabled = computed(
+  () => hasMore.value && !loadingMore.value && !refreshing.value && !loading.value,
+)
+
+const { sentinelRef } = useInfiniteScroll(handleLoadMore, {
+  enabled: infiniteEnabled,
 })
+
+watch(
+  () => [auth.initialized, auth.isLoggedIn] as const,
+  async ([initialized, loggedIn]) => {
+    if (!initialized || !loggedIn || bootstrapped.value) return
+    bootstrapped.value = true
+    await refreshHomeFeed()
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <div class="home-page">
+  <!-- ===== 移动端布局 ===== -->
+  <div v-if="isMobile" class="home-mobile">
+    <PullToRefresh :refreshing="refreshing" @refresh="handleRefresh" class="feed-wrapper">
+      <CollapsibleMap v-model:collapsed="mapCollapsed" />
+
+      <section class="mobile-sticky-panel">
+        <div class="mobile-search-card">
+          <div class="mobile-search-input">
+            <el-icon><Search /></el-icon>
+            <span>搜索活动、地点或你想找的搭子</span>
+          </div>
+        </div>
+
+        <div class="mobile-topic-row">
+          <span v-for="t in hotTopics" :key="t" class="mobile-topic-chip">{{ t }}</span>
+        </div>
+
+        <div class="mobile-category-scroll">
+          <span
+            class="mobile-category-chip"
+            :class="{ active: activeCategory === 0 }"
+            @click="selectCategory(0)"
+          >
+            全部
+          </span>
+          <span
+            v-for="cat in categories"
+            :key="cat.id"
+            class="mobile-category-chip"
+            :class="{ active: activeCategory === cat.id }"
+            @click="selectCategory(cat.id)"
+          >
+            {{ cat.name }}
+          </span>
+        </div>
+      </section>
+
+      <!-- Loading skeleton -->
+      <div v-if="loading" class="waterfall-grid">
+        <div v-for="i in 6" :key="i" class="skeleton-waterfall-card">
+          <div class="sk-img" :style="{ aspectRatio: ['3/4','4/5','1/1','4/3','3/5','3/4'][i-1] }" />
+          <div class="sk-line w80" />
+          <div class="sk-line w40" />
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div v-else-if="error && activities.length === 0" class="feed-empty">
+        <p>{{ error }}</p>
+        <el-button type="primary" size="small" @click="loadActivities(true)">重试</el-button>
+      </div>
+
+      <!-- Waterfall grid -->
+      <div v-else-if="activities.length > 0" class="waterfall-grid">
+        <WaterfallActivityCard
+          v-for="(a, i) in activities"
+          :key="a.id"
+          :activity="a"
+          :style="{ '--i': refreshing ? i : 0 }"
+        />
+
+        <div
+          v-if="hasMore"
+          ref="sentinelRef"
+          class="scroll-sentinel"
+        >
+          <span v-if="loadingMore" class="loading-more">加载中...</span>
+        </div>
+
+        <div v-if="!hasMore" class="feed-end">已加载全部活动</div>
+      </div>
+
+      <!-- Empty -->
+      <div v-else class="feed-empty">
+        <p>暂无可浏览的活动，去发布第一个吧</p>
+      </div>
+    </PullToRefresh>
+
+  </div>
+
+  <!-- ===== 桌面端布局（不变） ===== -->
+  <div v-else class="home-page">
     <div class="home-feed">
       <div class="category-tabs">
         <span
@@ -91,7 +233,7 @@ onMounted(() => {
       <!-- Error -->
       <div v-else-if="error" class="feed-empty">
         <p>{{ error }}</p>
-        <el-button type="primary" size="small" @click="loadActivities">重试</el-button>
+        <el-button type="primary" size="small" @click="loadActivities(true)">重试</el-button>
       </div>
 
       <!-- Activity list -->
@@ -130,24 +272,28 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* ===== 桌面端 ===== */
 .home-page {
   display: grid;
   grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
 }
+
 .home-feed {
   padding: 22px;
   overflow-y: auto;
   border-right: 1px solid var(--jg-line);
   animation: feed-in 420ms var(--jg-ease) both;
 }
+
 .category-tabs {
   display: flex;
   gap: 9px;
   margin-bottom: 18px;
   flex-wrap: wrap;
 }
+
 .category-tab {
   padding: 8px 14px;
   border-radius: 999px;
@@ -162,16 +308,19 @@ onMounted(() => {
     background-color 180ms var(--jg-ease),
     color 180ms var(--jg-ease);
 }
+
 .category-tab:hover {
   background: var(--jg-accent-soft);
   color: var(--jg-accent-deep);
   transform: translateY(-1px);
 }
+
 .category-tab.active {
   background: var(--jg-ink);
   color: var(--jg-surface);
   font-weight: 600;
 }
+
 .skeleton-card {
   display: flex;
   background: rgba(252, 251, 247, 0.78);
@@ -180,6 +329,7 @@ onMounted(() => {
   box-shadow: var(--jg-shadow-card);
   border: 1px solid var(--jg-line);
 }
+
 .skeleton-img {
   width: 140px;
   min-height: 120px;
@@ -188,6 +338,7 @@ onMounted(() => {
   background-size: 220% 100%;
   animation: shimmer 1.2s ease-out infinite;
 }
+
 .skeleton-body {
   flex: 1;
   padding: 14px;
@@ -195,6 +346,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 8px;
 }
+
 .skeleton-line {
   height: 14px;
   background: linear-gradient(90deg, #edeae2, #f8f6f0, #edeae2);
@@ -202,20 +354,25 @@ onMounted(() => {
   animation: shimmer 1.2s ease-out infinite;
   border-radius: 4px;
 }
+
 .skeleton-line.w80 {
   width: 80%;
 }
+
 .skeleton-line.w60 {
   width: 60%;
 }
+
 .skeleton-line.w40 {
   width: 40%;
 }
+
 .activity-list {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
+
 .feed-empty {
   text-align: center;
   padding: 64px 20px;
@@ -225,14 +382,17 @@ onMounted(() => {
   border: 1px dashed var(--jg-line-strong);
   border-radius: var(--jg-radius-lg);
 }
+
 .feed-empty .el-button {
   margin-top: 12px;
 }
+
 .home-map {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 240px;
 }
+
 .map-placeholder {
   position: relative;
   min-width: 0;
@@ -268,20 +428,24 @@ onMounted(() => {
   transform: rotate(-8deg);
   animation: float-card 5s var(--jg-ease) infinite;
 }
+
 .map-title {
   font-size: 24px;
   font-weight: 800;
   color: var(--jg-ink);
   margin-bottom: 4px;
 }
+
 .map-desc {
   font-size: 14px;
 }
+
 .map-note {
   font-size: 11px;
   margin-top: 8px;
   color: rgba(70, 73, 64, 0.55);
 }
+
 .map-pin {
   position: absolute;
   width: 18px;
@@ -300,6 +464,7 @@ onMounted(() => {
   border-radius: 999px;
   background: var(--jg-surface);
 }
+
 .map-sidebar {
   background: rgba(252, 251, 247, 0.78);
   padding: 22px 16px;
@@ -307,20 +472,24 @@ onMounted(() => {
   overflow-y: auto;
   backdrop-filter: blur(16px);
 }
+
 .sidebar-section {
   margin-bottom: 24px;
 }
+
 .sidebar-section h4 {
   font-size: 13px;
   font-weight: 800;
   color: var(--jg-ink);
   margin-bottom: 12px;
 }
+
 .topics {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
+
 .topic-tag {
   padding: 6px 10px;
   border-radius: 999px;
@@ -330,6 +499,165 @@ onMounted(() => {
   font-weight: 600;
 }
 
+/* ===== 移动端 ===== */
+.home-mobile {
+  min-height: 100%;
+}
+
+.feed-wrapper {
+  min-height: 100%;
+  padding-bottom: 14px;
+}
+
+.mobile-sticky-panel {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  padding: 10px 12px 12px;
+  background:
+    linear-gradient(180deg, rgba(243, 242, 239, 0.96), rgba(243, 242, 239, 0.92) 82%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.mobile-search-card {
+  margin-bottom: 10px;
+}
+
+.mobile-search-input {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-radius: 18px;
+  background: rgba(252, 251, 247, 0.95);
+  box-shadow:
+    0 10px 30px rgba(44, 49, 38, 0.08),
+    0 0 0 1px rgba(28, 30, 24, 0.06) inset;
+  color: var(--jg-muted);
+  font-size: 14px;
+}
+
+.mobile-search-input span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-topic-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.mobile-topic-row::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-topic-chip {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(252, 251, 247, 0.72);
+  color: var(--jg-accent-deep);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1px rgba(28, 30, 24, 0.06) inset;
+}
+
+.mobile-category-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mobile-category-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-category-chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(252, 251, 247, 0.86);
+  color: var(--jg-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1px var(--jg-line) inset;
+  flex-shrink: 0;
+}
+
+.mobile-category-chip.active {
+  background: var(--jg-ink);
+  color: var(--jg-surface);
+  box-shadow: none;
+}
+
+.waterfall-grid {
+  column-count: 2;
+  column-gap: 8px;
+  padding: 2px 8px 8px;
+}
+
+.skeleton-waterfall-card {
+  break-inside: avoid;
+  margin-bottom: 10px;
+  background: rgba(252, 251, 247, 0.78);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--jg-line);
+}
+
+.sk-img {
+  background: linear-gradient(90deg, #edeae2, #f8f6f0, #edeae2);
+  background-size: 220% 100%;
+  animation: shimmer 1.2s ease-out infinite;
+}
+
+.sk-line {
+  height: 12px;
+  margin: 8px 10px;
+  background: linear-gradient(90deg, #edeae2, #f8f6f0, #edeae2);
+  background-size: 220% 100%;
+  animation: shimmer 1.2s ease-out infinite;
+  border-radius: 4px;
+}
+
+.sk-line.w80 {
+  width: 80%;
+}
+
+.sk-line.w40 {
+  width: 40%;
+}
+
+.scroll-sentinel {
+  column-span: all;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-more {
+  font-size: 12px;
+  color: var(--jg-muted);
+}
+
+.feed-end {
+  column-span: all;
+  text-align: center;
+  padding: 20px 0 40px;
+  font-size: 12px;
+  color: var(--jg-muted);
+}
+
+/* ===== Keyframes ===== */
 @keyframes shimmer {
   to {
     background-position: -220% 0;
@@ -356,6 +684,7 @@ onMounted(() => {
   }
 }
 
+/* ===== 桌面端响应式 ===== */
 @media (max-width: 1100px) {
   .home-page {
     grid-template-columns: 1fr;
