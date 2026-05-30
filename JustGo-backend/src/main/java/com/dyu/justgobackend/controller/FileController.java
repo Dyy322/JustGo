@@ -6,7 +6,9 @@ import com.dyu.justgobackend.dto.request.user.UploadTokenRequest;
 import com.dyu.justgobackend.dto.response.oss.AccessUrlResponse;
 import com.dyu.justgobackend.dto.response.oss.UploadTokenResponse;
 import com.dyu.justgobackend.oss.OssService;
+import com.dyu.justgobackend.oss.OssService.CorsStatus;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +22,11 @@ public class FileController {
 
     public FileController(OssService ossService) {
         this.ossService = ossService;
+    }
+
+    @GetMapping("/cors-status")
+    public ApiResponse<CorsStatus> corsStatus() {
+        return ApiResponse.success(ossService.getCorsStatus());
     }
 
     @PostMapping("/upload-token")

@@ -21,7 +21,12 @@ public final class HttpServletResponseUtils {
         response.setStatus(httpStatus);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        OBJECT_MAPPER.writeValue(response.getWriter(), body);
+        try {
+            OBJECT_MAPPER.writeValue(response.getOutputStream(), body);
+        } catch (Exception e) {
+            response.reset();
+            throw e;
+        }
     }
 
     public static void writeUnauthorized(HttpServletResponse response, String message) throws IOException {
