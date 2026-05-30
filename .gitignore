@@ -2,14 +2,25 @@
 .claude/
 .superpowers/
 docs/
+.idea/
+.vscode/
+*.iml
 
 # macOS
 .DS_Store
 
 # Node
 node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+pnpm-lock.yaml
 
 package-lock.json
 
 # Maven
 target/
+.mvn/
+
+# Logs
+*.log
