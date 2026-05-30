@@ -49,6 +49,24 @@ const router = createRouter({
       props: { type: 'following' as const },
     },
     {
+      path: '/activities/create',
+      name: 'ActivityCreate',
+      component: () => import('@/views/ActivityCreateView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/activities/:id',
+      name: 'ActivityDetail',
+      component: () => import('@/views/ActivityDetailView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/activities/:id/edit',
+      name: 'ActivityEdit',
+      component: () => import('@/views/ActivityEditView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/',
     },

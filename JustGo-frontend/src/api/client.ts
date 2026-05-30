@@ -19,8 +19,12 @@ client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
+    const isAuthRequest =
+      originalRequest?.url === '/auth/login' ||
+      originalRequest?.url === '/auth/register' ||
+      originalRequest?.url === '/auth/refresh'
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       if (isRefreshing) {
         return new Promise((resolve) => {
           refreshSubscribers.push(() => resolve(client(originalRequest)))

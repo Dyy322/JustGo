@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { House, Setting, ChatDotSquare, Calendar, Search, DArrowLeft, DArrowRight } from '@element-plus/icons-vue'
+import {
+  House,
+  Setting,
+  ChatDotSquare,
+  Calendar,
+  Search,
+  DArrowLeft,
+  DArrowRight,
+} from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -29,11 +37,6 @@ const navItems: NavItem[] = [
   { path: '/', label: '消息', icon: ChatDotSquare },
 ]
 
-function goProfile() {
-  // trigger profile view — for now just navigate
-  // The actual profile link will be built with current user id
-}
-
 function isActive(item: NavItem): boolean {
   if (item.path === '/') return route.path === '/'
   return route.path.startsWith(item.path)
@@ -41,10 +44,15 @@ function isActive(item: NavItem): boolean {
 </script>
 
 <template>
-  <aside
-    class="app-sidebar"
-    :style="{ width: sidebarWidth }"
-  >
+  <aside class="app-sidebar" :style="{ width: sidebarWidth }">
+    <router-link to="/" class="brand-mark" :class="{ compact: collapsed }">
+      <span class="brand-symbol">即</span>
+      <span v-if="!collapsed" class="brand-copy">
+        <strong>JustGo</strong>
+        <small>城市活动中枢</small>
+      </span>
+    </router-link>
+
     <div class="sidebar-nav">
       <router-link
         v-for="item in navItems"
@@ -78,44 +86,95 @@ function isActive(item: NavItem): boolean {
 .app-sidebar {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  background: #fff;
-  border-right: 1px solid #f0f0f0;
-  transition: width 0.2s ease;
+  height: 100dvh;
+  background: rgba(252, 251, 247, 0.78);
+  border-right: 1px solid var(--jg-line);
+  transition: width 0.22s var(--jg-ease);
   overflow: hidden;
   flex-shrink: 0;
+  backdrop-filter: blur(18px);
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 68px;
+  padding: 16px 14px;
+  color: var(--jg-ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--jg-line);
+}
+
+.brand-mark.compact {
+  justify-content: center;
+}
+
+.brand-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  color: var(--jg-surface);
+  background: var(--jg-ink);
+  font-weight: 800;
+  box-shadow: 0 12px 26px rgba(23, 24, 21, 0.18);
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-copy strong {
+  font-size: 15px;
+  line-height: 1.1;
+}
+
+.brand-copy small {
+  margin-top: 3px;
+  color: var(--jg-muted);
+  font-size: 11px;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 16px 8px;
+  padding: 16px 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  color: #666;
+  padding: 11px 12px;
+  border-radius: 12px;
+  color: var(--jg-muted);
   text-decoration: none;
   font-size: 14px;
-  transition: all 0.15s;
+  transition:
+    transform 180ms var(--jg-ease),
+    background-color 180ms var(--jg-ease),
+    color 180ms var(--jg-ease);
   white-space: nowrap;
 }
 
 .nav-item:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: rgba(84, 116, 106, 0.08);
+  color: var(--jg-accent-deep);
+  transform: translateX(2px);
 }
 
 .nav-item.active {
-  background: #fff3ed;
-  color: #ff6b35;
+  background: var(--jg-accent-soft);
+  color: var(--jg-accent-deep);
   font-weight: 600;
+  box-shadow: 0 0 0 1px rgba(84, 116, 106, 0.08) inset;
 }
 
 .nav-label {
@@ -125,7 +184,7 @@ function isActive(item: NavItem): boolean {
 
 .sidebar-bottom {
   padding: 8px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--jg-line);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -138,14 +197,51 @@ function isActive(item: NavItem): boolean {
   padding: 8px;
   border: none;
   background: none;
-  color: #999;
+  color: var(--jg-muted);
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 14px;
 }
 
 .collapse-btn:hover {
-  background: #f5f5f5;
-  color: #666;
+  background: rgba(84, 116, 106, 0.08);
+  color: var(--jg-accent-deep);
+}
+
+@media (max-width: 900px) {
+  .app-sidebar {
+    position: fixed;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 40;
+    width: auto !important;
+    height: 62px;
+    border: 1px solid var(--jg-line);
+    border-radius: 22px;
+    box-shadow: var(--jg-shadow-soft);
+  }
+
+  .brand-mark,
+  .sidebar-bottom,
+  .nav-label {
+    display: none;
+  }
+
+  .sidebar-nav {
+    padding: 8px;
+    flex-direction: row;
+    justify-content: space-around;
+  }
+
+  .nav-item {
+    flex: 1;
+    justify-content: center;
+    padding: 12px 8px;
+  }
+
+  .nav-item:hover {
+    transform: translateY(-1px);
+  }
 }
 </style>

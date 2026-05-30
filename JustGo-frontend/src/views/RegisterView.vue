@@ -56,8 +56,8 @@ async function handleRegister() {
       <div class="brand-name">JustGo</div>
       <div class="brand-sub">即行</div>
       <p class="brand-desc">加入我们，一起探索</p>
-      <div class="brand-emoji">🤝</div>
-      <p class="brand-footer">已有账号？快去登录吧</p>
+      <div class="brand-orbit"><span /><span /><span /></div>
+      <p class="brand-footer">创建你的城市活动身份</p>
     </div>
     <div class="auth-form">
       <h2 class="form-title">创建账号</h2>
@@ -72,9 +72,22 @@ async function handleRegister() {
           <el-input v-model="form.email" placeholder="选填" size="large" />
         </el-form-item>
         <el-form-item label="密码" prop="password" required>
-          <el-input v-model="form.password" type="password" placeholder="6-72 个字符" size="large" show-password />
+          <el-input
+            v-model="form.password"
+            type="password"
+            placeholder="6-72 个字符"
+            size="large"
+            show-password
+          />
         </el-form-item>
-        <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="handleRegister">注 册</el-button>
+        <el-button
+          type="primary"
+          size="large"
+          class="submit-btn"
+          :loading="loading"
+          @click="handleRegister"
+          >注 册</el-button
+        >
       </el-form>
       <p class="switch-link">已有账号？<router-link to="/login">去登录</router-link></p>
     </div>
@@ -82,17 +95,178 @@ async function handleRegister() {
 </template>
 
 <style scoped>
-.auth-page { display: flex; width: 840px; min-height: 560px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 32px rgba(0,0,0,0.1); }
-.auth-brand { flex: 1; background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ffc107 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; padding: 48px 32px; }
-.brand-name { font-size: 36px; font-weight: 800; }
-.brand-sub { font-size: 20px; margin-bottom: 12px; }
-.brand-desc { font-size: 14px; opacity: 0.9; }
-.brand-emoji { font-size: 64px; margin: 24px 0 16px; }
-.brand-footer { font-size: 12px; opacity: 0.7; }
-.auth-form { flex: 1; background: #fff; padding: 36px 40px; display: flex; flex-direction: column; justify-content: center; }
-.form-title { font-size: 22px; font-weight: 700; color: #333; margin-bottom: 20px; }
-.submit-btn { width: 100%; margin-top: 8px; background: #ff6b35; border-color: #ff6b35; }
-.submit-btn:hover { background: #e55a2b; border-color: #e55a2b; }
-.switch-link { text-align: center; margin-top: 20px; font-size: 13px; color: #999; }
-.switch-link a { color: #ff6b35; font-weight: 600; text-decoration: none; }
-</style>
+.auth-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+  width: min(960px, 100%);
+  min-height: 590px;
+  border-radius: 28px;
+  overflow: hidden;
+  background: rgba(252, 251, 247, 0.72);
+  border: 1px solid var(--jg-line);
+  box-shadow: var(--jg-shadow-soft);
+  animation: auth-rise 520ms var(--jg-ease) both;
+}
+.auth-brand {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #171815;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  color: #fff;
+  padding: 56px;
+}
+.auth-brand::before {
+  content: '';
+  position: absolute;
+  inset: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  pointer-events: none;
+}
+.auth-brand::after {
+  content: '';
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  left: -130px;
+  bottom: -160px;
+  background: rgba(84, 116, 106, 0.42);
+  border-radius: 999px;
+  filter: blur(2px);
+  z-index: -1;
+}
+.brand-name {
+  font-size: 52px;
+  line-height: 0.95;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+.brand-sub {
+  font-size: 20px;
+  margin: 10px 0 18px;
+  color: rgba(255, 255, 255, 0.78);
+}
+.brand-desc {
+  max-width: 18em;
+  font-size: 15px;
+  line-height: 1.8;
+  opacity: 0.82;
+  text-wrap: pretty;
+}
+.brand-orbit {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin: 42px 0 22px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  animation: orbit 9s linear infinite;
+}
+.brand-orbit span {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #dce6df;
+  box-shadow: 0 16px 42px rgba(220, 230, 223, 0.22);
+}
+.brand-orbit span:nth-child(1) {
+  top: 20px;
+  left: 28px;
+}
+.brand-orbit span:nth-child(2) {
+  right: 18px;
+  top: 72px;
+  background: #8fa99f;
+}
+.brand-orbit span:nth-child(3) {
+  left: 74px;
+  bottom: 18px;
+  background: #fff;
+}
+.brand-footer {
+  font-size: 12px;
+  opacity: 0.68;
+}
+.auth-form {
+  flex: 1;
+  background: rgba(252, 251, 247, 0.96);
+  padding: 38px 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.form-title {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--jg-ink);
+  margin-bottom: 22px;
+  text-wrap: balance;
+}
+.submit-btn {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 8px;
+  border-radius: 999px;
+  font-weight: 800;
+}
+.switch-link {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--jg-muted);
+}
+.switch-link a {
+  color: var(--jg-accent-deep);
+  font-weight: 800;
+  text-decoration: none;
+}
+@keyframes auth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+}
+@keyframes orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 780px) {
+  .auth-page {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+  .auth-brand {
+    min-height: 280px;
+    padding: 38px;
+  }
+  .brand-name {
+    font-size: 42px;
+  }
+  .brand-orbit {
+    display: none;
+  }
+  .auth-form {
+    padding: 32px 24px;
+  }
+}
+
+@media (max-width: 780px) {
+  .auth-page {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    height: auto;
+  }
+  .auth-brand {
+    min-height: 260px;
+    padding: 34px;
+  }
+  .brand-name { font-size: 38px; }
+  .brand-orbit { display: none; }
+  .auth-form { padding: 28px 22px; }
+}</style>

@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getErrorMessage } from '@/api/error'
-import { getFollowers, getFollowing, followUser, unfollowUser } from '@/api/social'
+import { getFollowers, getFollowing, followUser } from '@/api/social'
 import type { FollowUserItem } from '@/types/api'
 
 const props = defineProps<{
@@ -41,18 +41,8 @@ function onAvatarError(user: FollowUserItem) {
 }
 
 function avatarGradient(user: FollowUserItem): string {
-  const gradients = [
-    'linear-gradient(135deg, #ff6b35, #f7931e)',
-    'linear-gradient(135deg, #667eea, #764ba2)',
-    'linear-gradient(135deg, #f093fb, #f5576c)',
-    'linear-gradient(135deg, #4facfe, #00f2fe)',
-    'linear-gradient(135deg, #43e97b, #38f9d7)',
-    'linear-gradient(135deg, #fa709a, #fee140)',
-    'linear-gradient(135deg, #a18cd1, #fbc2eb)',
-    'linear-gradient(135deg, #fccb90, #d57eeb)',
-  ]
-  const index = user.userId % gradients.length
-  return gradients[index]!
+  const tones = ['#54746a', '#2f4f47', '#736f5d', '#4f5d62', '#715e55', '#3f4941']
+  return tones[user.userId % tones.length]!
 }
 
 async function fetchFirstPage() {
@@ -143,9 +133,15 @@ watch(() => route.params.id, resetAndFetch)
               <el-skeleton-item variant="circle" style="width: 48px; height: 48px" />
               <div class="skeleton-text">
                 <el-skeleton-item variant="text" style="width: 120px; height: 16px" />
-                <el-skeleton-item variant="text" style="width: 80px; height: 14px; margin-top: 6px" />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 80px; height: 14px; margin-top: 6px"
+                />
               </div>
-              <el-skeleton-item variant="button" style="width: 64px; height: 30px; margin-left: auto" />
+              <el-skeleton-item
+                variant="button"
+                style="width: 64px; height: 30px; margin-left: auto"
+              />
             </div>
           </template>
         </el-skeleton>
@@ -153,31 +149,24 @@ watch(() => route.params.id, resetAndFetch)
     </div>
 
     <!-- Empty state -->
-    <el-empty
-      v-else-if="firstLoadDone && list.length === 0"
-      :description="`暂无${title}`"
-    />
+    <el-empty v-else-if="firstLoadDone && list.length === 0" :description="`暂无${title}`" />
 
     <!-- User list -->
     <div v-else class="user-list">
-      <div
-        v-for="user in list"
-        :key="user.userId"
-        class="user-row"
-      >
+      <div v-for="user in list" :key="user.userId" class="user-row">
         <div class="user-avatar" :style="{ background: avatarGradient(user) }">
-          <img v-if="user.avatar && !avatarFailed.has(user.userId)" :src="user.avatar" @error="onAvatarError(user)" />
+          <img
+            v-if="user.avatar && !avatarFailed.has(user.userId)"
+            :src="user.avatar"
+            @error="onAvatarError(user)"
+          />
           <span v-else>{{ avatarChar(user) }}</span>
         </div>
         <div class="user-info">
           <span class="user-nickname">{{ displayName(user) }}</span>
           <span class="user-username">@{{ user.username }}</span>
         </div>
-        <el-button
-          size="small"
-          class="follow-btn"
-          @click="handleToggleFollow(user)"
-        >
+        <el-button size="small" class="follow-btn" @click="handleToggleFollow(user)">
           关注
         </el-button>
       </div>
@@ -202,31 +191,40 @@ watch(() => route.params.id, resetAndFetch)
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  padding: 24px;
+  background: transparent;
+  animation: follow-in 420ms var(--jg-ease) both;
 }
 
 /* Header */
 .page-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 24px 26px;
+  border: 1px solid var(--jg-line);
+  border-radius: var(--jg-radius-lg) var(--jg-radius-lg) 0 0;
   flex-shrink: 0;
+  background: rgba(252, 251, 247, 0.82);
+  box-shadow: var(--jg-shadow-card);
 }
 
 .page-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #333;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--jg-ink);
   margin: 0;
 }
 
 /* Skeleton */
 .skeleton-list {
-  padding: 0 20px;
+  padding: 0 24px;
+  background: rgba(252, 251, 247, 0.72);
+  border: 1px solid var(--jg-line);
+  border-top: 0;
+  border-radius: 0 0 var(--jg-radius-lg) var(--jg-radius-lg);
 }
 
 .skeleton-row {
   padding: 14px 0;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--jg-line);
 }
 
 .skeleton-row-inner {
@@ -245,21 +243,26 @@ watch(() => route.params.id, resetAndFetch)
 .user-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 20px;
+  padding: 0 24px 24px;
+  background: rgba(252, 251, 247, 0.72);
+  border: 1px solid var(--jg-line);
+  border-top: 0;
+  border-radius: 0 0 var(--jg-radius-lg) var(--jg-radius-lg);
 }
 
 .user-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid #f5f5f5;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--jg-line);
+  animation: row-in 360ms var(--jg-ease) both;
 }
 
 .user-avatar {
   width: 48px;
   height: 48px;
-  border-radius: 50%;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -273,7 +276,7 @@ watch(() => route.params.id, resetAndFetch)
 .user-avatar img {
   width: 100%;
   height: 100%;
-  border-radius: 50%;
+  border-radius: 16px;
   object-fit: cover;
 }
 
@@ -287,8 +290,8 @@ watch(() => route.params.id, resetAndFetch)
 
 .user-nickname {
   font-size: 15px;
-  font-weight: 600;
-  color: #333;
+  font-weight: 800;
+  color: var(--jg-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -296,24 +299,24 @@ watch(() => route.params.id, resetAndFetch)
 
 .user-username {
   font-size: 12px;
-  color: #999;
+  color: var(--jg-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .follow-btn {
-  --el-button-bg-color: #ff6b35;
-  --el-button-border-color: #ff6b35;
+  --el-button-bg-color: var(--jg-accent);
+  --el-button-border-color: var(--jg-accent);
   --el-button-text-color: #fff;
-  --el-button-hover-bg-color: #e85d2a;
-  --el-button-hover-border-color: #e85d2a;
+  --el-button-hover-bg-color: var(--jg-accent-deep);
+  --el-button-hover-border-color: var(--jg-accent-deep);
   --el-button-hover-text-color: #fff;
   flex-shrink: 0;
   min-width: 64px;
   height: 30px;
   font-size: 13px;
-  border-radius: 16px;
+  border-radius: 999px;
 }
 
 /* Load more */
@@ -324,12 +327,39 @@ watch(() => route.params.id, resetAndFetch)
 }
 
 .load-more-btn {
-  --el-button-text-color: #ff6b35;
-  --el-button-border-color: #ff6b35;
+  --el-button-text-color: var(--jg-accent-deep);
+  --el-button-border-color: var(--jg-accent);
   --el-button-hover-text-color: #fff;
-  --el-button-hover-bg-color: #ff6b35;
-  --el-button-hover-border-color: #ff6b35;
-  border-radius: 20px;
+  --el-button-hover-bg-color: var(--jg-accent);
+  --el-button-hover-border-color: var(--jg-accent);
+  border-radius: 999px;
   min-width: 120px;
+}
+
+@keyframes follow-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (max-width: 680px) {
+  .follow-list-page {
+    padding: 16px;
+  }
+
+  .page-header,
+  .user-list,
+  .skeleton-list {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
 }
 </style>

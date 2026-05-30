@@ -68,7 +68,14 @@ async function handleAvatarChange(file: File) {
       return
     }
     const { uploadUrl, fileUrl } = tokenRes.data.data
-    const mimeType = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' }[ext] || 'application/octet-stream'
+    const mimeType =
+      {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        webp: 'image/webp',
+      }[ext] || 'application/octet-stream'
     await axios.put(uploadUrl, file, { headers: { 'Content-Type': mimeType } })
     const updateRes = await updateProfile({ avatar: fileUrl })
     if (updateRes.data.code === 0) {
@@ -159,7 +166,11 @@ const avatarChar = computed(() => {
         <h3 class="content-title">编辑资料</h3>
         <div class="avatar-upload">
           <div class="avatar-preview">
-            <img v-if="auth.currentUser?.avatar && !avatarFailed" :src="auth.currentUser.avatar" @error="avatarFailed = true" />
+            <img
+              v-if="auth.currentUser?.avatar && !avatarFailed"
+              :src="auth.currentUser.avatar"
+              @error="avatarFailed = true"
+            />
             <span v-else>{{ avatarChar }}</span>
           </div>
           <div class="avatar-action">
@@ -173,7 +184,7 @@ const avatarChar = computed(() => {
               />
             </label>
             <p class="upload-hint">支持 JPG/PNG/GIF/WebP，最大 5MB</p>
-            <p v-if="avatarUploading" class="upload-hint" style="color: #ff6b35">上传中...</p>
+            <p v-if="avatarUploading" class="upload-hint upload-hint--active">上传中...</p>
           </div>
         </div>
         <el-form
@@ -240,43 +251,54 @@ const avatarChar = computed(() => {
 
 <style scoped>
 .settings-page {
-  display: flex;
-  height: 100%;
-  background: #fff;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  min-height: 100%;
+  padding: 24px;
+  gap: 18px;
+  animation: settings-in 440ms var(--jg-ease) both;
 }
 .settings-sidebar {
-  width: 160px;
-  border-right: 1px solid #f0f0f0;
-  padding: 24px 12px;
+  border: 1px solid var(--jg-line);
+  border-radius: var(--jg-radius-lg);
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  align-self: start;
+  background: rgba(252, 251, 247, 0.76);
+  box-shadow: var(--jg-shadow-card);
 }
 .sidebar-tab {
-  padding: 10px 16px;
-  border-radius: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
   font-size: 13px;
-  color: #666;
+  font-weight: 700;
+  color: var(--jg-muted);
   cursor: pointer;
 }
 .sidebar-tab:hover {
-  background: #f5f5f5;
+  background: rgba(84, 116, 106, 0.08);
+  color: var(--jg-accent-deep);
 }
 .sidebar-tab.active {
-  background: #fff3ed;
-  color: #ff6b35;
-  font-weight: 600;
+  background: var(--jg-accent-soft);
+  color: var(--jg-accent-deep);
+  font-weight: 800;
 }
 .settings-content {
-  flex: 1;
-  padding: 32px 48px;
+  padding: 34px;
   overflow-y: auto;
+  background: rgba(252, 251, 247, 0.82);
+  border: 1px solid var(--jg-line);
+  border-radius: var(--jg-radius-lg);
+  box-shadow: var(--jg-shadow-card);
 }
 .content-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #333;
-  margin-bottom: 24px;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--jg-ink);
+  margin-bottom: 28px;
 }
 .avatar-upload {
   display: flex;
@@ -287,8 +309,8 @@ const avatarChar = computed(() => {
 .avatar-preview {
   width: 72px;
   height: 72px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  border-radius: 20px;
+  background: var(--jg-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -301,21 +323,47 @@ const avatarChar = computed(() => {
 .avatar-preview img {
   width: 100%;
   height: 100%;
-  border-radius: 50%;
+  border-radius: 20px;
   object-fit: cover;
 }
 .upload-label {
-  color: #ff6b35;
+  color: var(--jg-accent-deep);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 800;
   cursor: pointer;
 }
 .upload-hint {
   font-size: 11px;
-  color: #999;
+  color: var(--jg-muted);
   margin-top: 4px;
+}
+.upload-hint--active {
+  color: var(--jg-accent-deep);
+  font-weight: 700;
 }
 .settings-form {
   max-width: 400px;
+}
+
+@keyframes settings-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-page {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+
+  .settings-sidebar {
+    flex-direction: row;
+  }
+
+  .settings-content {
+    padding: 24px;
+  }
 }
 </style>
