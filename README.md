@@ -6,6 +6,21 @@
 
 即行（JustGo）是一款以**时效性**著称的、**找搭子**为主要功能的平台。收集各类活动信息，接入地图 API，在主页显示附近且最近即将到来的热点活动，能够在具体活动下发布找搭子帖子或开房间，找到搭子后按规定时间地点赴约，说走就走。
 
+## 仓库结构
+
+```text
+JustGo/
+├── JustGo-backend/   # Spring Boot 后端
+├── JustGo-frontend/  # Vue 3 前端
+├── Document/         # 正式项目文档与通用规范
+└── docs/             # AI 协作过程文件（不纳入版本管理）
+```
+
+- 仓库级开发规范见 `AGENTS.md`
+- 正式结构说明见 `Document/common/repository-structure.md`
+- 后端模块文档位于 `Document/backend/`
+- 通用机制与避坑文档位于 `Document/common/`
+
 旨在为想去游玩、约饭等的特立独行者提供一个方便找各样搭子的平台——
 
 - 关注一项近期社会活动，但没有同伴一起？来即行找志同道合的搭子。

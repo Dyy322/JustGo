@@ -1,12 +1,12 @@
-# CLAUDE.md
+# AGENTS.md
 
-此文件为 Claude Code（claude.ai/code）在本仓库中工作时提供指导。
+此文件为 Codex（Codex.ai/code）在本仓库中工作时提供指导。
 
 ## 项目概述
 
 即行（JustGo）—— 一个发现城市活动、寻找搭子的平台(详细内容看README.md)。全栈 monorepo，包含 Vue 3 前端和 Spring Boot 后端，通过 `git subtree` 从独立仓库合并而成。
 
-子目录 `JustGo-backend/CLAUDE.md` 和 `JustGo-frontend/CLAUDE.md` 分别包含后端和前端的架构细节。
+子目录 `JustGo-backend/AGENTS.md` 和 `JustGo-frontend/AGENTS.md` 分别包含后端和前端的架构细节。
 
 ## 开发命令
 
@@ -44,7 +44,7 @@ Prettier 配置（`.prettierrc.json`）：无分号、单引号、每行最多 1
 |------|------|
 | `feat` | 新功能或新模块 |
 | `fix` | 缺陷修复 |
-| `docs` | 文档或 CLAUDE.md 变更 |
+| `docs` | 文档或 AGENTS.md 变更 |
 | `refactor` | 重构（不改变外部行为） |
 | `test` | 测试相关 |
 | `chore` | 构建、依赖、配置等杂项 |
